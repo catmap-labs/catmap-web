@@ -75,7 +75,7 @@ The app is configured for GitHub Pages at:
 https://catmap-labs.github.io/catmap-web/
 ```
 
-`vite.config.ts` sets the base path to `/catmap-web/` when built inside the `catmap-labs/catmap-web` GitHub repository. The workflow in `.github/workflows/deploy.yml` builds the app and deploys the `dist` artifact with the official GitHub Pages Actions.
+`vite.config.ts` sets the base path to `/catmap-web/`. The workflow in `.github/workflows/deploy.yml` runs `npm ci`, builds the app, and publishes the generated `dist` output to the `gh-pages` branch used by GitHub Pages.
 
 ## Future Supabase Integration
 
