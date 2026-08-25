@@ -4,12 +4,18 @@ import { CareLog, CareTask, DemoState, HandoffRequest, Spot } from '../../types/
 const storageKey = 'catmap-demo-state-v1';
 
 const read = (): DemoState => {
+  const fallback = createDemoState();
   const raw = localStorage.getItem(storageKey);
-  if (!raw) return createDemoState();
+  if (!raw) return fallback;
   try {
-    return JSON.parse(raw) as DemoState;
+    const stored = JSON.parse(raw) as Partial<DemoState>;
+    return {
+      ...fallback,
+      ...stored,
+      cats: stored.cats ?? fallback.cats,
+    };
   } catch {
-    return createDemoState();
+    return fallback;
   }
 };
 
@@ -106,6 +112,14 @@ export const demoRepository = {
     });
     next.routines.push({ id: routineId, spotId: id, label: 'Dinner', tasks, localTime: '19:00' });
     next.shifts.push({ id: uid('shift'), spotId: id, startsAt: nextCareAt, tasks, status: 'open', source: 'routine' });
+    next.cats.push({
+      id: uid('cat'),
+      spotId: id,
+      name: 'Local regular',
+      coatColor: 'Unknown coat',
+      breed: 'Domestic shorthair',
+      notes: 'Add more details after a few care logs.',
+    });
     write(next);
     return next;
   },

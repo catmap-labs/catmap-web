@@ -29,6 +29,15 @@ export interface Spot {
   nextCareAt: string;
 }
 
+export interface CatProfile {
+  id: string;
+  spotId: string;
+  name?: string;
+  coatColor: string;
+  breed?: string;
+  notes?: string;
+}
+
 export interface SpotMember {
   id: string;
   spotId: string;
@@ -88,6 +97,7 @@ export interface HandoffRequest {
 export interface DemoState {
   profiles: Profile[];
   spots: Spot[];
+  cats: CatProfile[];
   members: SpotMember[];
   routines: Routine[];
   shifts: Shift[];

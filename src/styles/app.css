@@ -127,6 +127,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .info-grid strong { font-size: 13px; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .task-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 7px 10px; border-radius: 999px; background: var(--green-soft); color: #425b49; font-weight: 800; font-size: 12px; }
+.cat-list { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.72); }
+.cat-list h3 { margin: 0 0 10px; font-size: 15px; }
+.cat-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 0; border-top: 1px solid var(--line); }
+.cat-row:first-of-type { border-top: 0; padding-top: 0; }
+.cat-row strong, .cat-row small { display: block; }
+.cat-row small { margin-top: 2px; color: var(--muted); font-size: 12px; }
+.cat-token {
+  position: relative; flex: 0 0 34px; width: 34px; height: 34px; border-radius: 13px;
+  background: var(--green-soft); border: 1px solid rgba(95,124,105,.2);
+}
+.cat-token::before, .cat-token::after {
+  content: ""; position: absolute; top: 8px; width: 10px; height: 10px; background: var(--green);
+}
+.cat-token::before { left: 8px; transform: rotate(45deg); }
+.cat-token::after { right: 8px; transform: rotate(45deg); }
+.cat-token { overflow: hidden; }
+.cat-token > span { display: none; }
+.cat-token::marker { content: ""; }
 .log-list { margin-top: 14px; }
 .log-list h3, .list-section h2 { margin: 0 0 10px; font-size: 15px; }
 .log-row, .mini-row, .plain-row {

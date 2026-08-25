@@ -101,6 +101,18 @@ export const createDemoState = (): DemoState => ({
       nextCareAt: isoTomorrow,
     },
   ],
+  cats: [
+    { id: 'cat-miso', spotId: 'spot-riverside', name: 'Miso', coatColor: 'Orange tabby', breed: 'Domestic shorthair', notes: 'Usually appears after sunset.' },
+    { id: 'cat-bean', spotId: 'spot-riverside', name: 'Bean', coatColor: 'Black and white', breed: 'Domestic shorthair', notes: 'Shy, waits near the planter.' },
+    { id: 'cat-salt', spotId: 'spot-riverside', name: 'Salt', coatColor: 'Cream', breed: 'Domestic shorthair', notes: 'Often comes with Miso.' },
+    { id: 'cat-nori', spotId: 'spot-park', name: 'Nori', coatColor: 'Tuxedo', breed: 'Domestic shorthair', notes: 'Confident, checks the bowl first.' },
+    { id: 'cat-yuzu', spotId: 'spot-park', name: 'Yuzu', coatColor: 'Calico', breed: 'Domestic shorthair', notes: 'Keeps distance from people.' },
+    { id: 'cat-moon', spotId: 'spot-library', name: 'Moon', coatColor: 'Gray', breed: 'Domestic shorthair', notes: 'Seen around early morning.' },
+    { id: 'cat-sora', spotId: 'spot-tokyo', name: 'Sora', coatColor: 'Brown tabby', breed: 'Japanese bobtail mix', notes: 'Friendly with regular caretakers.' },
+    { id: 'cat-kinako', spotId: 'spot-tokyo', name: 'Kinako', coatColor: 'Ginger', breed: 'Domestic shorthair', notes: 'Needs water checked carefully.' },
+    { id: 'cat-pickle', spotId: 'spot-new-york', name: 'Pickle', coatColor: 'Black', breed: 'Domestic shorthair', notes: 'Usually behind the fence.' },
+    { id: 'cat-dot', spotId: 'spot-new-york', name: 'Dot', coatColor: 'White with spots', breed: 'Domestic shorthair', notes: 'May not approach if the street is busy.' },
+  ],
   members: [
     { id: 'member-1', spotId: 'spot-riverside', profileId: 'profile-mina', role: 'caretaker' },
     { id: 'member-2', spotId: 'spot-library', profileId: currentProfileId, role: 'caretaker' },

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import maplibregl, { Map } from 'maplibre-gl';
+import maplibregl, { GeoJSONSource, Map, MapLayerMouseEvent } from 'maplibre-gl';
 import {
   CalendarDays,
   Check,
@@ -45,6 +45,18 @@ const statusRank = {
   caredToday: 2,
 };
 
+const statusScore = {
+  caredToday: 0,
+  dueSoon: 1,
+  needsSomeone: 2,
+};
+
+const statusColor = {
+  caredToday: '#5f7c69',
+  dueSoon: '#d6944a',
+  needsSomeone: '#c85f50',
+};
+
 const formatTime = (iso: string) => new Intl.DateTimeFormat('en', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 const formatDate = (iso: string) => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(iso));
 const dateInput = (offsetDays: number) => {
@@ -55,6 +67,46 @@ const dateInput = (offsetDays: number) => {
 
 const getSpot = (state: DemoState, spotId: string) => state.spots.find((spot) => spot.id === spotId);
 const taskLabel = (task: CareTask) => en.task[task];
+
+const createCatIconImage = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.moveTo(18, 24);
+  context.lineTo(20, 11);
+  context.lineTo(31, 22);
+  context.lineTo(44, 11);
+  context.lineTo(46, 24);
+  context.quadraticCurveTo(53, 30, 53, 40);
+  context.quadraticCurveTo(53, 55, 32, 55);
+  context.quadraticCurveTo(11, 55, 11, 40);
+  context.quadraticCurveTo(11, 30, 18, 24);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = '#1f2a24';
+  context.beginPath();
+  context.arc(24, 38, 2.8, 0, Math.PI * 2);
+  context.arc(40, 38, 2.8, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = '#1f2a24';
+  context.lineWidth = 2.5;
+  context.lineCap = 'round';
+  context.beginPath();
+  context.moveTo(32, 42);
+  context.lineTo(32, 45);
+  context.moveTo(25, 47);
+  context.quadraticCurveTo(32, 51, 39, 47);
+  context.stroke();
+
+  return context.getImageData(0, 0, 64, 64);
+};
 
 function AppMap({
   spots,
@@ -69,7 +121,11 @@ function AppMap({
 }) {
   const mapNode = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
-  const markerRef = useRef<maplibregl.Marker[]>([]);
+  const clickRef = useRef(onSelect);
+
+  useEffect(() => {
+    clickRef.current = onSelect;
+  }, [onSelect]);
 
   useEffect(() => {
     if (!mapNode.current || mapRef.current) return;
@@ -77,6 +133,7 @@ function AppMap({
       container: mapNode.current,
       style: {
         version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
         sources: {
           osm: {
             type: 'raster',
@@ -95,6 +152,115 @@ function AppMap({
     mapRef.current = map;
     onReady(map);
 
+    map.on('load', () => {
+      const catIcon = createCatIconImage();
+      if (catIcon && !map.hasImage('cat-spot')) {
+        map.addImage('cat-spot', catIcon);
+      }
+
+      map.addSource('spots', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+        cluster: true,
+        clusterRadius: 48,
+        clusterMaxZoom: 13,
+        clusterProperties: {
+          maxStatus: ['max', ['get', 'statusScore']],
+        },
+      });
+
+      map.addLayer({
+        id: 'spot-clusters',
+        type: 'circle',
+        source: 'spots',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'case',
+            ['>=', ['get', 'maxStatus'], 2],
+            statusColor.needsSomeone,
+            ['>=', ['get', 'maxStatus'], 1],
+            statusColor.dueSoon,
+            statusColor.caredToday,
+          ],
+          'circle-radius': ['step', ['get', 'point_count'], 21, 4, 25, 8, 30],
+          'circle-stroke-width': 4,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.96,
+        },
+      });
+
+      map.addLayer({
+        id: 'spot-cluster-count',
+        type: 'symbol',
+        source: 'spots',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': ['get', 'point_count_abbreviated'],
+          'text-font': ['Open Sans Bold'],
+          'text-size': 13,
+        },
+        paint: {
+          'text-color': '#ffffff',
+        },
+      });
+
+      map.addLayer({
+        id: 'spot-points',
+        type: 'circle',
+        source: 'spots',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': ['get', 'color'],
+          'circle-radius': ['case', ['boolean', ['get', 'selected'], false], 19, 15],
+          'circle-stroke-width': ['case', ['boolean', ['get', 'selected'], false], 5, 3],
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.96,
+        },
+      });
+
+      map.addLayer({
+        id: 'spot-cat-icons',
+        type: 'symbol',
+        source: 'spots',
+        filter: ['!', ['has', 'point_count']],
+        layout: {
+          'icon-image': 'cat-spot',
+          'icon-size': ['case', ['boolean', ['get', 'selected'], false], 0.32, 0.25],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+      });
+
+      map.on('click', 'spot-points', (event: MapLayerMouseEvent) => {
+        const id = event.features?.[0]?.properties?.id;
+        if (typeof id === 'string') clickRef.current(id);
+      });
+
+      map.on('click', 'spot-clusters', (event: MapLayerMouseEvent) => {
+        const feature = event.features?.[0];
+        const clusterId = feature?.properties?.cluster_id;
+        const coordinates = feature?.geometry.type === 'Point' ? feature.geometry.coordinates : undefined;
+        const source = map.getSource('spots') as GeoJSONSource | undefined;
+        if (!source || typeof clusterId !== 'number' || !coordinates) return;
+        void source.getClusterExpansionZoom(clusterId).then((zoom) => {
+          map.easeTo({ center: [coordinates[0], coordinates[1]], zoom });
+        });
+      });
+
+      for (const layerId of ['spot-points', 'spot-clusters']) {
+        map.on('mouseenter', layerId, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = '';
+        });
+      }
+    });
+
     navigator.geolocation?.getCurrentPosition(
       (position) => map.flyTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 14, speed: 0.8 }),
       () => undefined,
@@ -107,17 +273,34 @@ function AppMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    markerRef.current.forEach((marker) => marker.remove());
-    markerRef.current = spots.map((spot) => {
-      const element = document.createElement('button');
-      element.className = `marker marker-${statusClass[spot.status]} ${selectedSpotId === spot.id ? 'selected' : ''}`;
-      element.type = 'button';
-      element.setAttribute('aria-label', `${spot.name}, ${en.status[spot.status]}`);
-      element.textContent = spot.status === 'needsSomeone' ? '!' : spot.catCountEstimate.toString();
-      element.addEventListener('click', () => onSelect(spot.id));
-      return new maplibregl.Marker({ element, anchor: 'center' }).setLngLat([spot.publicLongitude, spot.publicLatitude]).addTo(map);
-    });
-  }, [spots, selectedSpotId, onSelect]);
+    const setSpotData = () => {
+      const source = map.getSource('spots') as GeoJSONSource | undefined;
+      if (!source) return;
+      source.setData({
+        type: 'FeatureCollection',
+        features: spots.map((spot) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [spot.publicLongitude, spot.publicLatitude],
+          },
+          properties: {
+            id: spot.id,
+            name: spot.name,
+            status: spot.status,
+            statusScore: statusScore[spot.status],
+            color: statusColor[spot.status],
+            selected: selectedSpotId === spot.id,
+          },
+        })),
+      });
+    };
+    if (map.isStyleLoaded() && map.getSource('spots')) {
+      setSpotData();
+      return;
+    }
+    map.once('load', setSpotData);
+  }, [spots, selectedSpotId]);
 
   return <div className="map-canvas" ref={mapNode} aria-label="Catmap public spot map" />;
 }
@@ -282,6 +465,7 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose }: { 
   const logs = state.careLogs.filter((log) => log.spotId === spot.id).slice(0, 3);
   const shift = state.shifts.find((item) => item.spotId === spot.id && item.status === 'open');
   const routine = state.routines.find((item) => item.id === spot.routineId);
+  const cats = state.cats.filter((cat) => cat.spotId === spot.id);
   return (
     <SheetShell title={spot.name} eyebrow="Spot detail" onBack={onBack} onClose={onClose}>
       <div className="detail-status">
@@ -293,6 +477,18 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose }: { 
         <div><span>Next care</span><strong>{formatTime(spot.nextCareAt)}</strong></div>
       </div>
       {routine && <TaskChips tasks={routine.tasks} />}
+      <div className="cat-list">
+        <h3>Cats usually seen</h3>
+        {cats.map((cat) => (
+          <article className="cat-row" key={cat.id}>
+            <span className="cat-token" aria-hidden="true" />
+            <div>
+              <strong>{cat.name ?? 'Community cat'}</strong>
+              <small>{cat.coatColor}{cat.breed ? ` · ${cat.breed}` : ''}</small>
+            </div>
+          </article>
+        ))}
+      </div>
       <div className="log-list">
         <h3>Recent care log</h3>
         {logs.map((log) => (
