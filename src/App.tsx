@@ -142,22 +142,81 @@ function TaskChips({ tasks }: { tasks: CareTask[] }) {
   );
 }
 
-function SheetShell({ children, title, eyebrow, onBack }: { children: React.ReactNode; title: string; eyebrow?: string; onBack?: () => void }) {
+function SheetShell({
+  children,
+  title,
+  eyebrow,
+  onBack,
+  onClose,
+  defaultExpanded = true,
+}: {
+  children: React.ReactNode;
+  title: string;
+  eyebrow?: string;
+  onBack?: () => void;
+  onClose?: () => void;
+  defaultExpanded?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const dragStartY = useRef<number | null>(null);
+  const didDrag = useRef(false);
+  const toggleSheet = () => setIsExpanded((current) => !current);
+  const finishDrag = (clientY: number) => {
+    if (dragStartY.current === null) return;
+    const deltaY = clientY - dragStartY.current;
+    dragStartY.current = null;
+    if (deltaY > 42) {
+      didDrag.current = true;
+      setIsExpanded(false);
+      return;
+    }
+    if (deltaY < -42) {
+      didDrag.current = true;
+      setIsExpanded(true);
+    }
+  };
+
   return (
-    <section className="sheet" aria-label={title}>
-      <div className="handle" />
+    <section className={`sheet ${isExpanded ? 'expanded' : 'collapsed'}`} aria-label={title}>
+      <button
+        className="handle-button"
+        aria-label={isExpanded ? 'Collapse sheet' : 'Expand sheet'}
+        onClick={() => {
+          if (didDrag.current) {
+            didDrag.current = false;
+            return;
+          }
+          toggleSheet();
+        }}
+        onPointerDown={(event) => {
+          dragStartY.current = event.clientY;
+        }}
+        onPointerUp={(event) => finishDrag(event.clientY)}
+        onPointerCancel={() => {
+          dragStartY.current = null;
+        }}
+      >
+        <span className="handle" />
+      </button>
       <div className="sheet-head">
         <div>
           {eyebrow && <p className="eyebrow">{eyebrow}</p>}
           <h1>{title}</h1>
         </div>
-        {onBack && (
-          <button className="icon-button subtle" aria-label="Back" onClick={onBack}>
-            <ChevronLeft size={20} />
-          </button>
-        )}
+        <div className="sheet-actions">
+          {onBack && (
+            <button className="icon-button subtle" aria-label="Back" onClick={onBack}>
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          {onClose && (
+            <button className="icon-button subtle" aria-label="Close sheet" onClick={onClose}>
+              <X size={19} />
+            </button>
+          )}
+        </div>
       </div>
-      {children}
+      <div className="sheet-body">{children}</div>
     </section>
   );
 }
@@ -198,7 +257,7 @@ function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway }: { state
   const shift = state.shifts.find((item) => item.spotId === featured.id && item.status === 'open');
   const count = state.spots.filter((spot) => spot.status !== 'caredToday').length;
   return (
-    <SheetShell title="Nearby care" eyebrow="Tonight">
+    <SheetShell title="Nearby care" eyebrow="Tonight" defaultExpanded={false}>
       <div className="status-strip">
         <span className="dot danger" />
         <strong>{count} spots need care</strong>
@@ -219,12 +278,12 @@ function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway }: { state
   );
 }
 
-function SpotDetail({ state, spot, onCare, onTake, onAway, onBack }: { state: DemoState; spot: Spot; onCare: () => void; onTake: (shiftId: string) => void; onAway: () => void; onBack: () => void }) {
+function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose }: { state: DemoState; spot: Spot; onCare: () => void; onTake: (shiftId: string) => void; onAway: () => void; onBack: () => void; onClose: () => void }) {
   const logs = state.careLogs.filter((log) => log.spotId === spot.id).slice(0, 3);
   const shift = state.shifts.find((item) => item.spotId === spot.id && item.status === 'open');
   const routine = state.routines.find((item) => item.id === spot.routineId);
   return (
-    <SheetShell title={spot.name} eyebrow="Spot detail" onBack={onBack}>
+    <SheetShell title={spot.name} eyebrow="Spot detail" onBack={onBack} onClose={onClose}>
       <div className="detail-status">
         <Badge status={spot.status} />
         <p>{spot.description}</p>
@@ -252,7 +311,7 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack }: { state: De
   );
 }
 
-function CareNow({ spot, onComplete, onBack }: { spot: Spot; onComplete: (tasks: CareTask[], catsSeen: number, foodAmount: 'small' | 'medium' | 'large', cleanupConfirmed: boolean, note: string) => void; onBack: () => void }) {
+function CareNow({ spot, onComplete, onBack, onClose }: { spot: Spot; onComplete: (tasks: CareTask[], catsSeen: number, foodAmount: 'small' | 'medium' | 'large', cleanupConfirmed: boolean, note: string) => void; onBack: () => void; onClose: () => void }) {
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
   const [foodAmount, setFoodAmount] = useState<'small' | 'medium' | 'large'>('medium');
   const [catsSeen, setCatsSeen] = useState(spot.catCountEstimate);
@@ -260,7 +319,7 @@ function CareNow({ spot, onComplete, onBack }: { spot: Spot; onComplete: (tasks:
   const [note, setNote] = useState('');
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title="What did you do?" eyebrow={spot.name} onBack={onBack}>
+    <SheetShell title="What did you do?" eyebrow={spot.name} onBack={onBack} onClose={onClose}>
       <div className="large-options">
         {(['food', 'water', 'cleanup', 'catCheck'] as CareTask[]).map((task) => {
           const Icon = taskIcon[task];
@@ -296,14 +355,14 @@ function CareNow({ spot, onComplete, onBack }: { spot: Spot; onComplete: (tasks:
   );
 }
 
-function AwaySheet({ spot, onSubmit, onBack }: { spot: Spot; onSubmit: (from: string, until: string, tasks: CareTask[], message: string) => void; onBack: () => void }) {
+function AwaySheet({ spot, onSubmit, onBack, onClose }: { spot: Spot; onSubmit: (from: string, until: string, tasks: CareTask[], message: string) => void; onBack: () => void; onClose: () => void }) {
   const [from, setFrom] = useState(dateInput(2));
   const [until, setUntil] = useState(dateInput(7));
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
   const [message, setMessage] = useState("I'll be away for a few days. Can someone help with this spot?");
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title="I'm away" eyebrow={spot.name} onBack={onBack}>
+    <SheetShell title="I'm away" eyebrow={spot.name} onBack={onBack} onClose={onClose}>
       <div className="two-fields">
         <label className="field">From<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
         <label className="field">Until<input type="date" value={until} onChange={(event) => setUntil(event.target.value)} /></label>
@@ -429,13 +488,13 @@ function MyCare({ state, onOpenSpot }: { state: DemoState; onOpenSpot: (spotId: 
   );
 }
 
-function CreateSpot({ center, onCreate, onBack }: { center: [number, number]; onCreate: (name: string, description: string, tasks: CareTask[]) => void; onBack: () => void }) {
+function CreateSpot({ center, onCreate, onBack, onClose }: { center: [number, number]; onCreate: (name: string, description: string, tasks: CareTask[]) => void; onBack: () => void; onClose: () => void }) {
   const [name, setName] = useState('Courtyard corner');
   const [description, setDescription] = useState('Approximate public marker. Exact location stays private.');
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title="New spot" eyebrow="Pick from current map center" onBack={onBack}>
+    <SheetShell title="New spot" eyebrow="Pick from current map center" onBack={onBack} onClose={onClose}>
       <div className="privacy-note"><MapPin size={18} /> Public marker uses an approximate location. Exact coordinates are stored separately for future caretaker-only access.</div>
       <label className="field">Spot name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label className="field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
@@ -488,6 +547,7 @@ export function App() {
     if (spot && map) map.flyTo({ center: [spot.publicLongitude, spot.publicLatitude], zoom: 15, speed: 0.8 });
   };
   const takeShift = (shiftId: string) => save(demoRepository.takeShift(state, shiftId), 'Care shift added to My Care.');
+  const closeSheet = () => setSheet('nearby');
 
   return (
     <div className="app-shell">
@@ -507,11 +567,12 @@ export function App() {
             <button className="floating" aria-label="Create spot" onClick={() => setSheet('createSpot')}><Plus size={22} /></button>
           </div>
           {sheet === 'nearby' && <NearbySheet state={state} onOpenSpot={openSpot} onTake={takeShift} onQuickCare={() => setSheet('careNow')} onAway={() => setSheet('away')} />}
-          {sheet === 'spot' && selectedSpot && <SpotDetail state={state} spot={selectedSpot} onCare={() => setSheet('careNow')} onTake={takeShift} onAway={() => setSheet('away')} onBack={() => setSheet('nearby')} />}
+          {sheet === 'spot' && selectedSpot && <SpotDetail state={state} spot={selectedSpot} onCare={() => setSheet('careNow')} onTake={takeShift} onAway={() => setSheet('away')} onBack={() => setSheet('nearby')} onClose={closeSheet} />}
           {sheet === 'careNow' && selectedSpot && (
             <CareNow
               spot={selectedSpot}
               onBack={() => setSheet('spot')}
+              onClose={closeSheet}
               onComplete={(tasks, catsSeen, foodAmount, cleanupConfirmed, note) => {
                 save(demoRepository.completeCare(state, { spotId: selectedSpot.id, tasks, catsSeen, foodAmount, cleanupConfirmed, note }), 'Care logged. This spot is cared today.');
                 setSheet('spot');
@@ -522,6 +583,7 @@ export function App() {
             <AwaySheet
               spot={selectedSpot}
               onBack={() => setSheet('spot')}
+              onClose={closeSheet}
               onSubmit={(from, until, tasks, message) => {
                 save(demoRepository.createHandoff(state, selectedSpot.id, from, until, tasks, message), 'Coverage request created.');
                 setTab('care');
@@ -532,6 +594,7 @@ export function App() {
             <CreateSpot
               center={mapCenter}
               onBack={() => setSheet('nearby')}
+              onClose={closeSheet}
               onCreate={(name, description, tasks) => {
                 save(
                   demoRepository.createSpot(
