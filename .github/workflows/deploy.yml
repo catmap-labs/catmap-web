@@ -28,6 +28,8 @@ jobs:
       - name: Build
         run: npm run build
       - name: Publish built site
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd dist
           git init
