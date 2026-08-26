@@ -29,11 +29,43 @@ import { CareTask, DemoState, Shift, Spot } from './types/domain';
 type Tab = 'map' | 'care' | 'myCare';
 type Sheet = 'nearby' | 'spot' | 'careNow' | 'away' | 'createSpot' | 'settings';
 type Locale = 'ko' | 'en';
+type RegionScope = 'all' | 'bundang' | 'pangyo' | 'jeongja' | 'sunae' | 'seohyeon';
 
 const messages = { ko, en };
 type Messages = (typeof messages)[Locale];
 const localeStorageKey = 'catmap-locale-v1';
+const regionStorageKey = 'catmap-region-scope-v1';
 const mapProvider = import.meta.env.VITE_MAP_PROVIDER ?? 'maplibre';
+const regionScopes: Array<{
+  id: RegionScope;
+  label: Record<Locale, string>;
+  center: [number, number];
+  zoom: number;
+  match: (spot: Spot) => boolean;
+}> = [
+  { id: 'all', label: { ko: '전체', en: 'All' }, center: [127.111, 37.395], zoom: 13.2, match: () => true },
+  { id: 'bundang', label: { ko: '성남시 분당구', en: 'Bundang-gu' }, center: [127.1189, 37.3827], zoom: 13.2, match: (spot) => spot.countryCode === 'KR' && spot.district === 'Bundang-gu' },
+  { id: 'pangyo', label: { ko: '판교동', en: 'Pangyo-dong' }, center: [127.1115, 37.3948], zoom: 15, match: (spot) => spot.neighborhood === 'Pangyo-dong' || (!spot.neighborhood && ['spot-riverside', 'spot-park', 'spot-market'].includes(spot.id)) },
+  { id: 'jeongja', label: { ko: '정자동', en: 'Jeongja-dong' }, center: [127.1089, 37.3671], zoom: 15, match: (spot) => spot.neighborhood === 'Jeongja-dong' },
+  { id: 'sunae', label: { ko: '수내동', en: 'Sunae-dong' }, center: [127.1149, 37.3784], zoom: 15, match: (spot) => spot.neighborhood === 'Sunae-dong' },
+  { id: 'seohyeon', label: { ko: '서현동', en: 'Seohyeon-dong' }, center: [127.1233, 37.385], zoom: 15, match: (spot) => spot.neighborhood === 'Seohyeon-dong' },
+];
+const regionArea = (scope: RegionScope) => {
+  const neighborhood = {
+    all: 'Pangyo-dong',
+    bundang: 'Pangyo-dong',
+    pangyo: 'Pangyo-dong',
+    jeongja: 'Jeongja-dong',
+    sunae: 'Sunae-dong',
+    seohyeon: 'Seohyeon-dong',
+  }[scope];
+  return {
+    countryCode: 'KR',
+    city: 'Seongnam-si',
+    district: 'Bundang-gu',
+    neighborhood,
+  };
+};
 const demoAddressIndex = [
   { label: '서울', aliases: ['seoul', '서울', '서울시'], center: [126.978, 37.5665] as [number, number], zoom: 12 },
   { label: '분당', aliases: ['bundang', '분당', '성남 분당', '분당구'], center: [127.1189, 37.3827] as [number, number], zoom: 13 },
@@ -507,6 +539,32 @@ function Wordmark() {
   );
 }
 
+function RegionSelector({
+  value,
+  onChange,
+  locale,
+  t,
+}: {
+  value: RegionScope;
+  onChange: (scope: RegionScope) => void;
+  locale: Locale;
+  t: Messages;
+}) {
+  return (
+    <div className="region-filter" aria-label={t.sheets.regionScope}>
+      {regionScopes.map((scope) => (
+        <button
+          key={scope.id}
+          className={value === scope.id ? 'active' : ''}
+          onClick={() => onChange(scope.id)}
+        >
+          {scope.id === 'all' ? t.sheets.allRegions : scope.label[locale]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SpotCard({ spot, shift, onOpen, onTake, t }: { spot: Spot; shift?: Shift; onOpen: () => void; onTake: () => void; t: Messages }) {
   return (
     <article className="care-card featured" onClick={onOpen}>
@@ -679,14 +737,15 @@ function AwaySheet({ spot, onSubmit, onBack, onClose, t }: { spot: Spot; onSubmi
   );
 }
 
-function CareBoard({ state, onTake, onOpenSpot, t }: { state: DemoState; onTake: (shiftId: string) => void; onOpenSpot: (spotId: string) => void; t: Messages }) {
+function CareBoard({ state, regionScope, onTake, onOpenSpot, t }: { state: DemoState; regionScope: RegionScope; onTake: (shiftId: string) => void; onOpenSpot: (spotId: string) => void; t: Messages }) {
   const ordered = [...state.shifts].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const scope = regionScopes.find((item) => item.id === regionScope) ?? regionScopes[0];
   const nearbyOpenShifts = ordered
     .filter((shift) => shift.status === 'open')
     .map((shift) => ({ shift, spot: getSpot(state, shift.spotId) }))
     .filter((item): item is { shift: Shift; spot: Spot } => {
       if (!item.spot) return false;
-      return item.spot.distanceMeters <= nearbyCareLimitMeters;
+      return scope.match(item.spot) && item.spot.distanceMeters <= nearbyCareLimitMeters;
     });
   return (
     <main className="panel-page">
@@ -696,7 +755,7 @@ function CareBoard({ state, onTake, onOpenSpot, t }: { state: DemoState; onTake:
       </header>
       <section className="list-section">
         <h2>{t.sheets.nearbyOpenCare}</h2>
-        <p className="muted small">{t.sheets.globalSamplesHidden}</p>
+        <p className="muted small">{t.sheets.careRegionHint}</p>
         {nearbyOpenShifts.length === 0 ? <p className="muted">{t.sheets.noNearbyOpenCare}</p> : nearbyOpenShifts.map(({ shift, spot }) => {
           return (
             <article className="shift-card" key={shift.id} onClick={() => onOpenSpot(spot.id)}>
@@ -856,8 +915,12 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>([127.111, 37.395]);
   const [zoomLevel, setZoomLevel] = useState(14.3);
+  const [regionScope, setRegionScope] = useState<RegionScope>(() => (localStorage.getItem(regionStorageKey) as RegionScope | null) ?? 'bundang');
   const t = messages[locale];
-  const selectedSpot = useMemo(() => state.spots.find((spot) => spot.id === selectedSpotId) ?? state.spots[0], [state.spots, selectedSpotId]);
+  const activeRegion = regionScopes.find((scope) => scope.id === regionScope) ?? regionScopes[1];
+  const scopedSpots = useMemo(() => state.spots.filter((spot) => activeRegion.match(spot)), [activeRegion, state.spots]);
+  const scopedState = useMemo(() => ({ ...state, spots: scopedSpots }), [state, scopedSpots]);
+  const selectedSpot = useMemo(() => state.spots.find((spot) => spot.id === selectedSpotId) ?? scopedSpots[0] ?? state.spots[0], [state.spots, selectedSpotId, scopedSpots]);
 
   useEffect(() => {
     if (!toast) return;
@@ -898,6 +961,15 @@ export function App() {
     setLocale(nextLocale);
     localStorage.setItem(localeStorageKey, nextLocale);
   };
+  const changeRegion = (nextRegion: RegionScope) => {
+    const next = regionScopes.find((scope) => scope.id === nextRegion) ?? regionScopes[1];
+    setRegionScope(next.id);
+    localStorage.setItem(regionStorageKey, next.id);
+    map?.flyTo({ center: next.center, zoom: next.zoom, speed: 0.8 });
+    const firstSpot = state.spots.find((spot) => next.match(spot));
+    if (firstSpot) setSelectedSpotId(firstSpot.id);
+    setSheet('nearby');
+  };
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const result = searchDemoAddress(searchQuery);
@@ -914,7 +986,7 @@ export function App() {
     <div className="app-shell">
       <div className="topbar">
         <div>
-          <p className="eyebrow">{t.location} · {t.demoMode}</p>
+          <p className="eyebrow">{activeRegion.label[locale]} · {t.demoMode}</p>
           <div className="brand-row"><BrandLogo /><div><strong><Wordmark /></strong><span className="brand-tagline">{t.tagline}</span></div></div>
         </div>
         <button className="icon-button" aria-label="Settings" onClick={() => setSheet('settings')}><Settings size={19} /></button>
@@ -922,11 +994,12 @@ export function App() {
 
       {tab === 'map' ? (
         <>
-          <AppMap spots={state.spots} selectedSpotId={selectedSpot?.id} onReady={setMap} onSelect={openSpot} />
+          <AppMap spots={scopedSpots} selectedSpotId={selectedSpot?.id} onReady={setMap} onSelect={openSpot} />
           <form className="map-search" role="search" onSubmit={submitSearch}>
             <Search size={18} />
             <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t.sheets.searchPlaceholder} aria-label={t.sheets.searchPlaceholder} />
           </form>
+          <RegionSelector value={regionScope} onChange={changeRegion} locale={locale} t={t} />
           <div className="map-controls">
             <button className="floating" aria-label={t.actions.locateMe} onClick={() => navigator.geolocation?.getCurrentPosition((pos) => map?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14.5 }))}><LocateFixed size={20} /></button>
             <div className="zoom-control" aria-label={t.sheets.mapZoomControls}>
@@ -954,7 +1027,7 @@ export function App() {
               <MapPin size={40} />
             </div>
           )}
-          {sheet === 'nearby' && <NearbySheet state={state} onOpenSpot={openSpot} onTake={takeShift} onQuickCare={() => setSheet('careNow')} onAway={() => setSheet('away')} t={t} />}
+          {sheet === 'nearby' && <NearbySheet state={scopedState} onOpenSpot={openSpot} onTake={takeShift} onQuickCare={() => setSheet('careNow')} onAway={() => setSheet('away')} t={t} />}
           {sheet === 'spot' && selectedSpot && <SpotDetail state={state} spot={selectedSpot} onCare={() => setSheet('careNow')} onTake={takeShift} onAway={() => setSheet('away')} onBack={() => setSheet('nearby')} onClose={closeSheet} t={t} />}
           {sheet === 'careNow' && selectedSpot && (
             <CareNow
@@ -993,6 +1066,7 @@ export function App() {
                     {
                       name,
                       description,
+                      ...regionArea(regionScope),
                       publicLongitude: mapCenter[0],
                       publicLatitude: mapCenter[1],
                       exactLongitude: mapCenter[0] + 0.0007,
@@ -1009,7 +1083,7 @@ export function App() {
           {sheet === 'settings' && <SettingsSheet locale={locale} onLocaleChange={changeLocale} onClose={closeSheet} t={t} />}
         </>
       ) : tab === 'care' ? (
-        <CareBoard state={state} onTake={takeShift} onOpenSpot={openSpot} t={t} />
+        <CareBoard state={state} regionScope={regionScope} onTake={takeShift} onOpenSpot={openSpot} t={t} />
       ) : (
         <MyCare state={state} onOpenSpot={openSpot} t={t} />
       )}

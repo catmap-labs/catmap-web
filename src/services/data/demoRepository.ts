@@ -115,7 +115,7 @@ export const demoRepository: CatmapRepository = {
     write(next);
     return next;
   },
-  createSpot(state: DemoState, spot: Pick<Spot, 'name' | 'description' | 'publicLatitude' | 'publicLongitude' | 'exactLatitude' | 'exactLongitude'>, tasks: CareTask[]): DemoState {
+  createSpot(state: DemoState, spot: Pick<Spot, 'name' | 'description' | 'countryCode' | 'city' | 'district' | 'neighborhood' | 'publicLatitude' | 'publicLongitude' | 'exactLatitude' | 'exactLongitude'>, tasks: CareTask[]): DemoState {
     const db = createMemoryDb(state);
     const id = uid('spot');
     const routineId = uid('routine');

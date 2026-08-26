@@ -15,6 +15,10 @@ export interface Spot {
   id: string;
   name: string;
   description: string;
+  countryCode?: string;
+  city?: string;
+  district?: string;
+  neighborhood?: string;
   exactLatitude: number;
   exactLongitude: number;
   publicLatitude: number;

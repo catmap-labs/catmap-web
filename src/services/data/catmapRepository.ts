@@ -8,7 +8,7 @@ export interface CatmapRepository {
   createHandoff(state: DemoState, spotId: string, fromDate: string, untilDate: string, tasks: CareTask[], message: string): DemoState;
   createSpot(
     state: DemoState,
-    spot: Pick<Spot, 'name' | 'description' | 'publicLatitude' | 'publicLongitude' | 'exactLatitude' | 'exactLongitude'>,
+    spot: Pick<Spot, 'name' | 'description' | 'countryCode' | 'city' | 'district' | 'neighborhood' | 'publicLatitude' | 'publicLongitude' | 'exactLatitude' | 'exactLongitude'>,
     tasks: CareTask[],
   ): DemoState;
 }

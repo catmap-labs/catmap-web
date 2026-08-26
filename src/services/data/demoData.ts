@@ -7,6 +7,12 @@ const isoTonight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 19
 const isoTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 19, 0).toISOString();
 
 export const currentProfileId = 'profile-alex';
+const pangyoArea = { countryCode: 'KR', city: 'Seongnam-si', district: 'Bundang-gu', neighborhood: 'Pangyo-dong' };
+const jeongjaArea = { countryCode: 'KR', city: 'Seongnam-si', district: 'Bundang-gu', neighborhood: 'Jeongja-dong' };
+const sunaeArea = { countryCode: 'KR', city: 'Seongnam-si', district: 'Bundang-gu', neighborhood: 'Sunae-dong' };
+const seohyeonArea = { countryCode: 'KR', city: 'Seongnam-si', district: 'Bundang-gu', neighborhood: 'Seohyeon-dong' };
+const tokyoArea = { countryCode: 'JP', city: 'Tokyo', district: 'Taito', neighborhood: 'Yanaka' };
+const newYorkArea = { countryCode: 'US', city: 'New York', district: 'Brooklyn', neighborhood: 'Greenpoint' };
 
 export const createDemoState = (): DemoState => ({
   profiles: [
@@ -19,6 +25,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-riverside',
       name: 'Riverside garden',
       description: 'Quiet feeding point behind the riverside planters. Public marker is intentionally approximate.',
+      ...pangyoArea,
       exactLatitude: 37.39478,
       exactLongitude: 127.1111,
       publicLatitude: 37.39545,
@@ -36,6 +43,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-park',
       name: 'Park entrance',
       description: 'Small station near the west path, usually active around dinner.',
+      ...pangyoArea,
       exactLatitude: 37.3928,
       exactLongitude: 127.1163,
       publicLatitude: 37.39355,
@@ -53,6 +61,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-library',
       name: 'Library wall',
       description: 'Morning water refill spot. Keep the area clean and low profile.',
+      ...jeongjaArea,
       exactLatitude: 37.3971,
       exactLongitude: 127.1076,
       publicLatitude: 37.39665,
@@ -70,6 +79,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-market',
       name: 'Market back lane',
       description: 'Dinner spot behind a small market row. Keep bowls out of the walkway.',
+      ...pangyoArea,
       exactLatitude: 37.39515,
       exactLongitude: 127.11295,
       publicLatitude: 37.39478,
@@ -87,6 +97,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-underpass',
       name: 'Underpass planter',
       description: 'Small public marker near the underpass planters. Exact location is intentionally offset.',
+      ...sunaeArea,
       exactLatitude: 37.39605,
       exactLongitude: 127.11355,
       publicLatitude: 37.3957,
@@ -104,6 +115,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-schoolwall',
       name: 'School wall',
       description: 'Morning check spot along the quiet wall. Public marker is slightly moved for safety.',
+      ...seohyeonArea,
       exactLatitude: 37.39372,
       exactLongitude: 127.11018,
       publicLatitude: 37.39325,
@@ -121,6 +133,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-tokyo',
       name: 'Yanaka steps',
       description: 'Tokyo demo spot with approximate public coordinates for global care coverage testing.',
+      ...tokyoArea,
       exactLatitude: 35.72795,
       exactLongitude: 139.76684,
       publicLatitude: 35.72872,
@@ -138,6 +151,7 @@ export const createDemoState = (): DemoState => ({
       id: 'spot-new-york',
       name: 'Greenpoint alley',
       description: 'New York demo spot for validating future multi-city Catmap usage.',
+      ...newYorkArea,
       exactLatitude: 40.73045,
       exactLongitude: -73.95116,
       publicLatitude: 40.72973,

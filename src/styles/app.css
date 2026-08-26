@@ -76,6 +76,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 }
 .map-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-weight: 700; }
 .map-search input::placeholder { color: #8a938e; font-weight: 600; }
+.region-filter {
+  position: fixed; z-index: 14; left: 18px; right: 76px; top: calc(164px + env(safe-area-inset-top));
+  display: flex; gap: 7px; overflow-x: auto; padding: 2px 1px 8px;
+  scrollbar-width: none;
+}
+.region-filter::-webkit-scrollbar { display: none; }
+.region-filter button {
+  flex: 0 0 auto; min-height: 34px; border: 1px solid rgba(31,42,36,.09); border-radius: 999px;
+  padding: 8px 11px; background: rgba(255,255,255,.94); color: var(--muted);
+  box-shadow: 0 7px 18px rgba(31,42,36,.09); font-size: 12px; font-weight: 900;
+}
+.region-filter button.active { background: var(--ink); color: white; border-color: var(--ink); }
 
 .draft-pin {
   position: fixed; z-index: 13; left: 50%; top: 50%;
@@ -257,6 +269,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
   .brand-tagline { display: block; }
   .sheet { left: auto; right: 28px; bottom: 92px; width: min(420px, 42vw); border-radius: 28px; max-height: calc(100svh - 150px); }
   .map-search { left: 28px; right: auto; width: min(430px, 36vw); }
+  .region-filter { left: 28px; right: auto; width: min(430px, 36vw); }
   .bottom-nav { left: 50%; right: auto; bottom: 22px; width: 430px; transform: translateX(-50%); border: 1px solid var(--line); border-radius: 24px; padding-bottom: 8px; height: 74px; box-shadow: var(--shadow); }
   .toast { left: auto; right: 28px; width: 390px; bottom: 26px; }
   .panel-page { padding-left: max(28px, 6vw); padding-right: max(28px, 44vw); }

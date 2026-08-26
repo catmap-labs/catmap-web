@@ -104,6 +104,9 @@ export const en = {
     mapZoomLevel: 'Map zoom level',
     primaryNavigation: 'Primary',
     dismiss: 'Dismiss',
+    regionScope: 'Region scope',
+    allRegions: 'All',
+    careRegionHint: 'Showing map spots and open care in the selected region.',
   },
   toast: {
     shiftTaken: 'Care shift added to My Care.',

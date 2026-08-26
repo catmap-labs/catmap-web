@@ -104,6 +104,9 @@ export const ko = {
     mapZoomLevel: '지도 확대 단계',
     primaryNavigation: '주요 메뉴',
     dismiss: '닫기',
+    regionScope: '지역 범위',
+    allRegions: '전체',
+    careRegionHint: '선택한 지역의 지도 스팟과 열린 돌봄만 보여줍니다.',
   },
   toast: {
     shiftTaken: '돌봄 일정이 내 돌봄에 추가되었습니다.',
