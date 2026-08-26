@@ -51,6 +51,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .icon-button.subtle { background: rgba(255,255,255,.68); box-shadow: none; border: 1px solid var(--line); }
 .map-controls { position: fixed; right: 16px; top: calc(112px + env(safe-area-inset-top)); z-index: 12; display: grid; gap: 10px; }
 .floating { width: 44px; height: 44px; border-radius: 14px; }
+.map-search {
+  position: fixed; z-index: 14; left: 18px; right: 76px; top: calc(112px + env(safe-area-inset-top));
+  display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 13px;
+  border: 1px solid rgba(31,42,36,.08); border-radius: 15px;
+  background: rgba(255,255,255,.96); box-shadow: 0 8px 22px rgba(31,42,36,.12);
+}
+.map-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-weight: 700; }
+.map-search input::placeholder { color: #8a938e; font-weight: 600; }
 
 .marker {
   width: 46px; height: 46px; border: 4px solid white; border-radius: 16px;
@@ -169,6 +177,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .checkline input { width: 20px; height: 20px; accent-color: var(--green); }
 .sticky-action { margin-top: 12px; }
 .privacy-note { display: flex; gap: 9px; align-items: flex-start; padding: 11px 12px; border-radius: 16px; background: var(--orange-soft); color: #6d4d29; font-size: 12px; line-height: 1.35; }
+.settings-block { padding: 12px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.72); margin-top: 12px; }
+.settings-block h3 { margin: 0 0 8px; font-size: 15px; }
 
 .panel-page {
   min-height: 100svh; padding: calc(92px + env(safe-area-inset-top)) 18px calc(96px + env(safe-area-inset-bottom));
@@ -215,6 +225,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
   .topbar { padding-left: 28px; padding-right: 28px; }
   .brand-row span { display: block; }
   .sheet { left: auto; right: 28px; bottom: 92px; width: min(420px, 42vw); border-radius: 28px; max-height: calc(100svh - 150px); }
+  .map-search { left: 28px; right: auto; width: min(430px, 36vw); }
   .bottom-nav { left: 28px; right: auto; bottom: 22px; width: 430px; border: 1px solid var(--line); border-radius: 24px; padding-bottom: 8px; height: 74px; box-shadow: var(--shadow); }
   .toast { left: auto; right: 28px; width: 390px; bottom: 26px; }
   .panel-page { padding-left: max(28px, 6vw); padding-right: max(28px, 44vw); }

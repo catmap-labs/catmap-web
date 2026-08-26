@@ -17,7 +17,7 @@ The demo data model separates `exactLatitude` / `exactLongitude` from `publicLat
 - React
 - Vite
 - TypeScript
-- MapLibre GL JS with OpenStreetMap raster tiles
+- MapLibre GL JS with OpenStreetMap raster tiles as the no-key demo fallback
 - Lightweight CSS
 - lucide-react icons
 - GitHub Pages and GitHub Actions
@@ -51,9 +51,22 @@ Copy `.env.example` to `.env.local` when backend credentials are available:
 ```bash
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+VITE_MAP_PROVIDER=maplibre
+VITE_NAVER_MAP_CLIENT_ID=
+VITE_KAKAO_JAVASCRIPT_KEY=
 ```
 
 Secrets should not be committed.
+
+## Maps For Korea
+
+The deployed MVP currently uses MapLibre with OpenStreetMap tiles so it can run without API keys. For a Korea-first service, the intended production path is to switch the map provider to NAVER Maps or Kakao Maps after issuing keys and registering the production domain.
+
+- NAVER Maps: better fit for Korean consumer map expectations and native app shell continuity.
+- Kakao Maps: also viable, with JavaScript SDK quota and Kakao platform integration.
+- MapLibre/OpenStreetMap: useful as a development fallback, but Korean POI and sensitive facility rendering may not match domestic service expectations.
+
+The environment variable `VITE_MAP_PROVIDER` is reserved for provider switching. Until NAVER/Kakao keys are configured, the app keeps the MapLibre fallback.
 
 ## Build
 

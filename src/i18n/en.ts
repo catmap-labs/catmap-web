@@ -2,6 +2,7 @@ export const en = {
   appName: 'Catmap',
   tagline: 'Where people care for community cats together.',
   demoMode: 'Demo Mode',
+  location: 'Korea · Bundang',
   nav: {
     map: 'Map',
     care: 'Care',
@@ -28,5 +29,19 @@ export const en = {
     coverAll: 'Cover all',
     createSpot: 'Create spot',
     saveSpot: 'Save spot',
+  },
+  sheets: {
+    nearbyCare: 'Nearby care',
+    tonight: 'Tonight',
+    spotDetail: 'Spot detail',
+    careQuestion: 'What did you do?',
+    newSpot: 'New spot',
+    settings: 'Settings',
+    catsUsuallySeen: 'Cats usually seen',
+    recentCareLog: 'Recent care log',
+    language: 'Language',
+    mapProvider: 'Map provider',
+    searchPlaceholder: 'Search address or area',
+    searchEmpty: 'Try Seoul, Bundang, Pangyo, Jeongja, or Sunae.',
   },
 } as const;

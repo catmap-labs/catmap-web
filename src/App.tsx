@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { GeoJSONSource, Map, MapLayerMouseEvent } from 'maplibre-gl';
 import {
   CalendarDays,
@@ -12,19 +12,35 @@ import {
   LocateFixed,
   MapPin,
   Plus,
+  Search,
+  Settings,
   Sparkles,
-  UserRound,
   Utensils,
   Waves,
   X,
 } from 'lucide-react';
 import { en } from './i18n/en';
+import { ko } from './i18n/ko';
 import { demoRepository } from './services/data/demoRepository';
 import { currentProfileId } from './services/data/demoData';
 import { CareTask, DemoState, Shift, Spot } from './types/domain';
 
 type Tab = 'map' | 'care' | 'myCare';
-type Sheet = 'nearby' | 'spot' | 'careNow' | 'away' | 'createSpot';
+type Sheet = 'nearby' | 'spot' | 'careNow' | 'away' | 'createSpot' | 'settings';
+type Locale = 'ko' | 'en';
+
+const messages = { ko, en };
+type Messages = (typeof messages)[Locale];
+const localeStorageKey = 'catmap-locale-v1';
+const mapProvider = import.meta.env.VITE_MAP_PROVIDER ?? 'maplibre';
+const demoAddressIndex = [
+  { label: '서울', aliases: ['seoul', '서울', '서울시'], center: [126.978, 37.5665] as [number, number], zoom: 12 },
+  { label: '분당', aliases: ['bundang', '분당', '성남 분당', '분당구'], center: [127.1189, 37.3827] as [number, number], zoom: 13 },
+  { label: '판교', aliases: ['pangyo', '판교', '판교역'], center: [127.1115, 37.3948] as [number, number], zoom: 15 },
+  { label: '정자', aliases: ['jeongja', '정자', '정자역'], center: [127.1089, 37.3671] as [number, number], zoom: 15 },
+  { label: '수내', aliases: ['sunae', '수내', '수내역'], center: [127.1149, 37.3784] as [number, number], zoom: 15 },
+  { label: '서현', aliases: ['seohyeon', '서현', '서현역'], center: [127.1233, 37.385] as [number, number], zoom: 15 },
+];
 
 const taskIcon = {
   food: Utensils,
@@ -66,7 +82,12 @@ const dateInput = (offsetDays: number) => {
 };
 
 const getSpot = (state: DemoState, spotId: string) => state.spots.find((spot) => spot.id === spotId);
-const taskLabel = (task: CareTask) => en.task[task];
+const searchDemoAddress = (query: string) => {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return undefined;
+  return demoAddressIndex.find((item) => item.aliases.some((alias) => normalized.includes(alias)));
+};
+const localizedToast = (locale: Locale, koMessage: string, enMessage: string) => (locale === 'ko' ? koMessage : enMessage);
 
 const createCatIconImage = () => {
   const canvas = document.createElement('canvas');
@@ -165,8 +186,8 @@ function AppMap({
           features: [],
         },
         cluster: true,
-        clusterRadius: 48,
-        clusterMaxZoom: 13,
+        clusterRadius: 96,
+        clusterMaxZoom: 16,
         clusterProperties: {
           maxStatus: ['max', ['get', 'statusScore']],
         },
@@ -186,7 +207,7 @@ function AppMap({
             statusColor.dueSoon,
             statusColor.caredToday,
           ],
-          'circle-radius': ['step', ['get', 'point_count'], 21, 4, 25, 8, 30],
+          'circle-radius': ['step', ['get', 'point_count'], 22, 3, 27, 8, 32],
           'circle-stroke-width': 4,
           'circle-stroke-color': '#ffffff',
           'circle-opacity': 0.96,
@@ -305,11 +326,11 @@ function AppMap({
   return <div className="map-canvas" ref={mapNode} aria-label="Catmap public spot map" />;
 }
 
-function Badge({ status }: { status: Spot['status'] }) {
-  return <span className={`badge ${statusClass[status]}`}>{en.status[status]}</span>;
+function Badge({ status, t }: { status: Spot['status']; t: Messages }) {
+  return <span className={`badge ${statusClass[status]}`}>{t.status[status]}</span>;
 }
 
-function TaskChips({ tasks }: { tasks: CareTask[] }) {
+function TaskChips({ tasks, t }: { tasks: CareTask[]; t: Messages }) {
   return (
     <div className="chip-row">
       {tasks.map((task) => {
@@ -317,7 +338,7 @@ function TaskChips({ tasks }: { tasks: CareTask[] }) {
         return (
           <span className="task-chip" key={task}>
             <Icon size={14} />
-            {taskLabel(task)}
+            {t.task[task]}
           </span>
         );
       })}
@@ -404,17 +425,17 @@ function SheetShell({
   );
 }
 
-function SpotCard({ spot, shift, onOpen, onTake }: { spot: Spot; shift?: Shift; onOpen: () => void; onTake: () => void }) {
+function SpotCard({ spot, shift, onOpen, onTake, t }: { spot: Spot; shift?: Shift; onOpen: () => void; onTake: () => void; t: Messages }) {
   return (
     <article className="care-card featured" onClick={onOpen}>
       <div className="spot-photo" aria-hidden="true" />
       <div className="care-card-body">
         <div className="card-topline">
-          <Badge status={spot.status} />
+          <Badge status={spot.status} t={t} />
           <span className="distance">{spot.distanceMeters} m</span>
         </div>
         <h2>{spot.name}</h2>
-        <p>{formatTime(spot.nextCareAt)} · {shift ? shift.tasks.map(taskLabel).join(' + ') : 'Routine care'}</p>
+        <p>{formatTime(spot.nextCareAt)} · {shift ? shift.tasks.map((task) => t.task[task]).join(' + ') : 'Routine care'}</p>
         <div className="care-meta">
           <span>{spot.lastCaredAt ? `Last cared ${formatDate(spot.lastCaredAt)}` : 'No recent care'}</span>
           <span>{spot.catCountEstimate} cats seen</span>
@@ -427,58 +448,58 @@ function SpotCard({ spot, shift, onOpen, onTake }: { spot: Spot; shift?: Shift; 
             onTake();
           }}
         >
-          {shift?.status === 'assigned' ? 'Covered by Alex' : en.actions.takeIt}
+          {shift?.status === 'assigned' ? 'Covered by Alex' : t.actions.takeIt}
         </button>
       </div>
     </article>
   );
 }
 
-function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway }: { state: DemoState; onOpenSpot: (id: string) => void; onTake: (id: string) => void; onQuickCare: () => void; onAway: () => void }) {
+function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway, t }: { state: DemoState; onOpenSpot: (id: string) => void; onTake: (id: string) => void; onQuickCare: () => void; onAway: () => void; t: Messages }) {
   const needsCare = [...state.spots].sort((a, b) => statusRank[a.status] - statusRank[b.status]);
   const featured = needsCare[0];
   const shift = state.shifts.find((item) => item.spotId === featured.id && item.status === 'open');
   const count = state.spots.filter((spot) => spot.status !== 'caredToday').length;
   return (
-    <SheetShell title="Nearby care" eyebrow="Tonight" defaultExpanded={false}>
+    <SheetShell title={t.sheets.nearbyCare} eyebrow={t.sheets.tonight} defaultExpanded={false}>
       <div className="status-strip">
         <span className="dot danger" />
         <strong>{count} spots need care</strong>
         <span>nearby</span>
       </div>
-      <SpotCard spot={featured} shift={shift} onOpen={() => onOpenSpot(featured.id)} onTake={() => shift && onTake(shift.id)} />
+      <SpotCard spot={featured} shift={shift} onOpen={() => onOpenSpot(featured.id)} onTake={() => shift && onTake(shift.id)} t={t} />
       <div className="quick-grid">
         <button className="quick-card" onClick={onQuickCare}>
           <span className="quick-icon"><ClipboardCheck size={18} /></span>
-          <span><strong>{en.actions.careNow}</strong><small>Log a visit</small></span>
+          <span><strong>{t.actions.careNow}</strong><small>Log a visit</small></span>
         </button>
         <button className="quick-card" onClick={onAway}>
           <span className="quick-icon"><CalendarDays size={18} /></span>
-          <span><strong>{en.actions.imAway}</strong><small>Find coverage</small></span>
+          <span><strong>{t.actions.imAway}</strong><small>Find coverage</small></span>
         </button>
       </div>
     </SheetShell>
   );
 }
 
-function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose }: { state: DemoState; spot: Spot; onCare: () => void; onTake: (shiftId: string) => void; onAway: () => void; onBack: () => void; onClose: () => void }) {
+function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose, t }: { state: DemoState; spot: Spot; onCare: () => void; onTake: (shiftId: string) => void; onAway: () => void; onBack: () => void; onClose: () => void; t: Messages }) {
   const logs = state.careLogs.filter((log) => log.spotId === spot.id).slice(0, 3);
   const shift = state.shifts.find((item) => item.spotId === spot.id && item.status === 'open');
   const routine = state.routines.find((item) => item.id === spot.routineId);
   const cats = state.cats.filter((cat) => cat.spotId === spot.id);
   return (
-    <SheetShell title={spot.name} eyebrow="Spot detail" onBack={onBack} onClose={onClose}>
+    <SheetShell title={spot.name} eyebrow={t.sheets.spotDetail} onBack={onBack} onClose={onClose}>
       <div className="detail-status">
-        <Badge status={spot.status} />
+        <Badge status={spot.status} t={t} />
         <p>{spot.description}</p>
       </div>
       <div className="info-grid">
         <div><span>Last cared for</span><strong>{spot.lastCaredAt ? `${formatTime(spot.lastCaredAt)} · ${spot.lastCaredBy}` : 'No log yet'}</strong></div>
         <div><span>Next care</span><strong>{formatTime(spot.nextCareAt)}</strong></div>
       </div>
-      {routine && <TaskChips tasks={routine.tasks} />}
+      {routine && <TaskChips tasks={routine.tasks} t={t} />}
       <div className="cat-list">
-        <h3>Cats usually seen</h3>
+        <h3>{t.sheets.catsUsuallySeen}</h3>
         {cats.map((cat) => (
           <article className="cat-row" key={cat.id}>
             <span className="cat-token" aria-hidden="true" />
@@ -490,24 +511,24 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose }: { 
         ))}
       </div>
       <div className="log-list">
-        <h3>Recent care log</h3>
+        <h3>{t.sheets.recentCareLog}</h3>
         {logs.map((log) => (
           <div className="log-row" key={log.id}>
             <span>{formatTime(log.caredAt)}</span>
-            <strong>{log.tasks.map(taskLabel).join(' · ')}</strong>
+            <strong>{log.tasks.map((task) => t.task[task]).join(' · ')}</strong>
           </div>
         ))}
       </div>
       <div className="action-row">
-        <button className="primary" onClick={onCare}>{en.actions.careNow}</button>
-        <button className="secondary" disabled={!shift} onClick={() => shift && onTake(shift.id)}>{shift ? en.actions.takeIt : 'No open shift'}</button>
-        <button className="secondary" onClick={onAway}>{en.actions.imAway}</button>
+        <button className="primary" onClick={onCare}>{t.actions.careNow}</button>
+        <button className="secondary" disabled={!shift} onClick={() => shift && onTake(shift.id)}>{shift ? t.actions.takeIt : 'No open shift'}</button>
+        <button className="secondary" onClick={onAway}>{t.actions.imAway}</button>
       </div>
     </SheetShell>
   );
 }
 
-function CareNow({ spot, onComplete, onBack, onClose }: { spot: Spot; onComplete: (tasks: CareTask[], catsSeen: number, foodAmount: 'small' | 'medium' | 'large', cleanupConfirmed: boolean, note: string) => void; onBack: () => void; onClose: () => void }) {
+function CareNow({ spot, onComplete, onBack, onClose, t }: { spot: Spot; onComplete: (tasks: CareTask[], catsSeen: number, foodAmount: 'small' | 'medium' | 'large', cleanupConfirmed: boolean, note: string) => void; onBack: () => void; onClose: () => void; t: Messages }) {
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
   const [foodAmount, setFoodAmount] = useState<'small' | 'medium' | 'large'>('medium');
   const [catsSeen, setCatsSeen] = useState(spot.catCountEstimate);
@@ -515,14 +536,14 @@ function CareNow({ spot, onComplete, onBack, onClose }: { spot: Spot; onComplete
   const [note, setNote] = useState('');
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title="What did you do?" eyebrow={spot.name} onBack={onBack} onClose={onClose}>
+    <SheetShell title={t.sheets.careQuestion} eyebrow={spot.name} onBack={onBack} onClose={onClose}>
       <div className="large-options">
         {(['food', 'water', 'cleanup', 'catCheck'] as CareTask[]).map((task) => {
           const Icon = taskIcon[task];
           return (
             <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>
               <Icon size={20} />
-              {taskLabel(task)}
+              {t.task[task]}
             </button>
           );
         })}
@@ -545,13 +566,13 @@ function CareNow({ spot, onComplete, onBack, onClose }: { spot: Spot; onComplete
         <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional short note" />
       </label>
       <button className="primary sticky-action" disabled={tasks.length === 0} onClick={() => onComplete(tasks, catsSeen, foodAmount, cleanupConfirmed, note)}>
-        {en.actions.completeCare}
+        {t.actions.completeCare}
       </button>
     </SheetShell>
   );
 }
 
-function AwaySheet({ spot, onSubmit, onBack, onClose }: { spot: Spot; onSubmit: (from: string, until: string, tasks: CareTask[], message: string) => void; onBack: () => void; onClose: () => void }) {
+function AwaySheet({ spot, onSubmit, onBack, onClose, t }: { spot: Spot; onSubmit: (from: string, until: string, tasks: CareTask[], message: string) => void; onBack: () => void; onClose: () => void; t: Messages }) {
   const [from, setFrom] = useState(dateInput(2));
   const [until, setUntil] = useState(dateInput(7));
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
@@ -565,24 +586,24 @@ function AwaySheet({ spot, onSubmit, onBack, onClose }: { spot: Spot; onSubmit: 
       </div>
       <div className="large-options compact-options">
         {(['food', 'water', 'cleanup', 'catCheck'] as CareTask[]).map((task) => (
-          <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>{taskLabel(task)}</button>
+          <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>{t.task[task]}</button>
         ))}
       </div>
       <label className="field">Message<textarea value={message} onChange={(event) => setMessage(event.target.value)} /></label>
       <button className="primary sticky-action" disabled={!from || !until || tasks.length === 0} onClick={() => onSubmit(from, until, tasks, message)}>
-        {en.actions.askCoverage}
+        {t.actions.askCoverage}
       </button>
     </SheetShell>
   );
 }
 
-function CareBoard({ state, onTake, onOpenSpot }: { state: DemoState; onTake: (shiftId: string) => void; onOpenSpot: (spotId: string) => void }) {
+function CareBoard({ state, onTake, onOpenSpot, t }: { state: DemoState; onTake: (shiftId: string) => void; onOpenSpot: (spotId: string) => void; t: Messages }) {
   const ordered = [...state.shifts].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   return (
     <main className="panel-page">
       <header className="page-head">
-        <p className="eyebrow">{en.demoMode}</p>
-        <h1>Care</h1>
+        <p className="eyebrow">{t.demoMode}</p>
+        <h1>{t.nav.care}</h1>
       </header>
       <section className="list-section">
         <h2>Needs someone</h2>
@@ -594,22 +615,22 @@ function CareBoard({ state, onTake, onOpenSpot }: { state: DemoState; onTake: (s
               <div>
                 <span className="time">{formatTime(shift.startsAt)}</span>
                 <h3>{spot.name}</h3>
-                <TaskChips tasks={shift.tasks} />
+                <TaskChips tasks={shift.tasks} t={t} />
               </div>
               <div className="shift-side">
                 <span>{spot.distanceMeters} m</span>
-                <button className="secondary compact" onClick={(event) => { event.stopPropagation(); onTake(shift.id); }}>{en.actions.takeIt}</button>
+                <button className="secondary compact" onClick={(event) => { event.stopPropagation(); onTake(shift.id); }}>{t.actions.takeIt}</button>
               </div>
             </article>
           );
         })}
       </section>
-      <CoverageBoard state={state} onTake={onTake} />
+      <CoverageBoard state={state} onTake={onTake} t={t} />
     </main>
   );
 }
 
-function CoverageBoard({ state, onTake }: { state: DemoState; onTake: (shiftId: string) => void }) {
+function CoverageBoard({ state, onTake, t }: { state: DemoState; onTake: (shiftId: string) => void; t: Messages }) {
   if (state.handoffRequests.length === 0) {
     return (
       <section className="empty-state">
@@ -641,7 +662,7 @@ function CoverageBoard({ state, onTake }: { state: DemoState; onTake: (shiftId: 
                 </button>
               ))}
             </div>
-            <button className="secondary" disabled={open.length === 0} onClick={() => open.forEach((shift) => onTake(shift.id))}>{en.actions.coverAll}</button>
+            <button className="secondary" disabled={open.length === 0} onClick={() => open.forEach((shift) => onTake(shift.id))}>{t.actions.coverAll}</button>
           </article>
         );
       })}
@@ -649,14 +670,14 @@ function CoverageBoard({ state, onTake }: { state: DemoState; onTake: (shiftId: 
   );
 }
 
-function MyCare({ state, onOpenSpot }: { state: DemoState; onOpenSpot: (spotId: string) => void }) {
+function MyCare({ state, onOpenSpot, t }: { state: DemoState; onOpenSpot: (spotId: string) => void; t: Messages }) {
   const mine = state.shifts.filter((shift) => shift.assignedToProfileId === currentProfileId && shift.status !== 'completed');
   const mySpots = state.spots.filter((spot) => spot.caretakerProfileId === currentProfileId);
   return (
     <main className="panel-page">
       <header className="page-head">
         <p className="eyebrow">Alex</p>
-        <h1>My Care</h1>
+        <h1>{t.nav.myCare}</h1>
       </header>
       <section className="list-section">
         <h2>Upcoming</h2>
@@ -666,14 +687,14 @@ function MyCare({ state, onOpenSpot }: { state: DemoState; onOpenSpot: (spotId: 
           return (
             <article className="mini-row" key={shift.id} onClick={() => onOpenSpot(spot.id)}>
               <span>{formatTime(shift.startsAt)}</span>
-              <div><strong>{spot.name}</strong><small>{shift.tasks.map(taskLabel).join(' · ')}</small></div>
+              <div><strong>{spot.name}</strong><small>{shift.tasks.map((task) => t.task[task]).join(' · ')}</small></div>
             </article>
           );
         })}
       </section>
       <section className="list-section">
         <h2>My spots</h2>
-        {mySpots.map((spot) => <button className="plain-row" key={spot.id} onClick={() => onOpenSpot(spot.id)}>{spot.name}<Badge status={spot.status} /></button>)}
+        {mySpots.map((spot) => <button className="plain-row" key={spot.id} onClick={() => onOpenSpot(spot.id)}>{spot.name}<Badge status={spot.status} t={t} /></button>)}
       </section>
       <section className="list-section three-tabs" aria-label="Care summaries">
         <button>My spots</button>
@@ -684,35 +705,68 @@ function MyCare({ state, onOpenSpot }: { state: DemoState; onOpenSpot: (spotId: 
   );
 }
 
-function CreateSpot({ center, onCreate, onBack, onClose }: { center: [number, number]; onCreate: (name: string, description: string, tasks: CareTask[]) => void; onBack: () => void; onClose: () => void }) {
+function CreateSpot({ center, onCreate, onBack, onClose, t }: { center: [number, number]; onCreate: (name: string, description: string, tasks: CareTask[]) => void; onBack: () => void; onClose: () => void; t: Messages }) {
   const [name, setName] = useState('Courtyard corner');
   const [description, setDescription] = useState('Approximate public marker. Exact location stays private.');
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title="New spot" eyebrow="Pick from current map center" onBack={onBack} onClose={onClose}>
+    <SheetShell title={t.sheets.newSpot} eyebrow="Pick from current map center" onBack={onBack} onClose={onClose}>
       <div className="privacy-note"><MapPin size={18} /> Public marker uses an approximate location. Exact coordinates are stored separately for future caretaker-only access.</div>
       <label className="field">Spot name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label className="field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <div className="large-options compact-options">
         {(['food', 'water', 'cleanup', 'catCheck'] as CareTask[]).map((task) => (
-          <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>{taskLabel(task)}</button>
+          <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>{t.task[task]}</button>
         ))}
       </div>
       <p className="muted small">Map center: {center[1].toFixed(4)}, {center[0].toFixed(4)}</p>
-      <button className="primary sticky-action" disabled={!name.trim() || tasks.length === 0} onClick={() => onCreate(name, description, tasks)}>{en.actions.saveSpot}</button>
+      <button className="primary sticky-action" disabled={!name.trim() || tasks.length === 0} onClick={() => onCreate(name, description, tasks)}>{t.actions.saveSpot}</button>
+    </SheetShell>
+  );
+}
+
+function SettingsSheet({
+  locale,
+  onLocaleChange,
+  onClose,
+  t,
+}: {
+  locale: Locale;
+  onLocaleChange: (locale: Locale) => void;
+  onClose: () => void;
+  t: Messages;
+}) {
+  return (
+    <SheetShell title={t.sheets.settings} eyebrow={t.demoMode} onClose={onClose}>
+      <section className="settings-block">
+        <h3>{t.sheets.language}</h3>
+        <div className="segmented">
+          <button className={locale === 'ko' ? 'active' : ''} onClick={() => onLocaleChange('ko')}>한국어</button>
+          <button className={locale === 'en' ? 'active' : ''} onClick={() => onLocaleChange('en')}>English</button>
+        </div>
+      </section>
+      <section className="settings-block">
+        <h3>{t.sheets.mapProvider}</h3>
+        <p className="muted small">
+          {mapProvider === 'maplibre' ? 'MapLibre demo map. Naver/Kakao can be enabled with keys.' : mapProvider}
+        </p>
+      </section>
     </SheetShell>
   );
 }
 
 export function App() {
   const [state, setState] = useState<DemoState>(() => demoRepository.load());
+  const [locale, setLocale] = useState<Locale>(() => (localStorage.getItem(localeStorageKey) as Locale | null) ?? 'ko');
   const [tab, setTab] = useState<Tab>('map');
   const [sheet, setSheet] = useState<Sheet>('nearby');
   const [selectedSpotId, setSelectedSpotId] = useState(state.spots[0]?.id);
   const [toast, setToast] = useState('');
   const [map, setMap] = useState<Map | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>([127.111, 37.395]);
+  const t = messages[locale];
   const selectedSpot = useMemo(() => state.spots.find((spot) => spot.id === selectedSpotId) ?? state.spots[0], [state.spots, selectedSpotId]);
 
   useEffect(() => {
@@ -744,31 +798,51 @@ export function App() {
   };
   const takeShift = (shiftId: string) => save(demoRepository.takeShift(state, shiftId), 'Care shift added to My Care.');
   const closeSheet = () => setSheet('nearby');
+  const changeLocale = (nextLocale: Locale) => {
+    setLocale(nextLocale);
+    localStorage.setItem(localeStorageKey, nextLocale);
+  };
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = searchDemoAddress(searchQuery);
+    if (!result) {
+      setToast(t.sheets.searchEmpty);
+      return;
+    }
+    map?.flyTo({ center: result.center, zoom: result.zoom, speed: 0.8 });
+    setToast(localizedToast(locale, `${result.label} 지도 위치로 이동했습니다.`, `Moved map to ${result.label}.`));
+    setSheet('nearby');
+  };
 
   return (
     <div className="app-shell">
       <div className="topbar">
         <div>
-          <p className="eyebrow">Seoul · Bundang · {en.demoMode}</p>
-          <div className="brand-row"><div className="brand-mark">C</div><div><strong>{en.appName}</strong><span>{en.tagline}</span></div></div>
+          <p className="eyebrow">{t.location} · {t.demoMode}</p>
+          <div className="brand-row"><div className="brand-mark">C</div><div><strong>{t.appName}</strong><span>{t.tagline}</span></div></div>
         </div>
-        <button className="icon-button" aria-label="Profile"><UserRound size={19} /></button>
+        <button className="icon-button" aria-label="Settings" onClick={() => setSheet('settings')}><Settings size={19} /></button>
       </div>
 
       {tab === 'map' ? (
         <>
           <AppMap spots={state.spots} selectedSpotId={selectedSpot?.id} onReady={setMap} onSelect={openSpot} />
+          <form className="map-search" role="search" onSubmit={submitSearch}>
+            <Search size={18} />
+            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t.sheets.searchPlaceholder} aria-label={t.sheets.searchPlaceholder} />
+          </form>
           <div className="map-controls">
             <button className="floating" aria-label="Use current location" onClick={() => navigator.geolocation?.getCurrentPosition((pos) => map?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14.5 }))}><LocateFixed size={20} /></button>
             <button className="floating" aria-label="Create spot" onClick={() => setSheet('createSpot')}><Plus size={22} /></button>
           </div>
-          {sheet === 'nearby' && <NearbySheet state={state} onOpenSpot={openSpot} onTake={takeShift} onQuickCare={() => setSheet('careNow')} onAway={() => setSheet('away')} />}
-          {sheet === 'spot' && selectedSpot && <SpotDetail state={state} spot={selectedSpot} onCare={() => setSheet('careNow')} onTake={takeShift} onAway={() => setSheet('away')} onBack={() => setSheet('nearby')} onClose={closeSheet} />}
+          {sheet === 'nearby' && <NearbySheet state={state} onOpenSpot={openSpot} onTake={takeShift} onQuickCare={() => setSheet('careNow')} onAway={() => setSheet('away')} t={t} />}
+          {sheet === 'spot' && selectedSpot && <SpotDetail state={state} spot={selectedSpot} onCare={() => setSheet('careNow')} onTake={takeShift} onAway={() => setSheet('away')} onBack={() => setSheet('nearby')} onClose={closeSheet} t={t} />}
           {sheet === 'careNow' && selectedSpot && (
             <CareNow
               spot={selectedSpot}
               onBack={() => setSheet('spot')}
               onClose={closeSheet}
+              t={t}
               onComplete={(tasks, catsSeen, foodAmount, cleanupConfirmed, note) => {
                 save(demoRepository.completeCare(state, { spotId: selectedSpot.id, tasks, catsSeen, foodAmount, cleanupConfirmed, note }), 'Care logged. This spot is cared today.');
                 setSheet('spot');
@@ -780,6 +854,7 @@ export function App() {
               spot={selectedSpot}
               onBack={() => setSheet('spot')}
               onClose={closeSheet}
+              t={t}
               onSubmit={(from, until, tasks, message) => {
                 save(demoRepository.createHandoff(state, selectedSpot.id, from, until, tasks, message), 'Coverage request created.');
                 setTab('care');
@@ -791,6 +866,7 @@ export function App() {
               center={mapCenter}
               onBack={() => setSheet('nearby')}
               onClose={closeSheet}
+              t={t}
               onCreate={(name, description, tasks) => {
                 save(
                   demoRepository.createSpot(
@@ -811,18 +887,19 @@ export function App() {
               }}
             />
           )}
+          {sheet === 'settings' && <SettingsSheet locale={locale} onLocaleChange={changeLocale} onClose={closeSheet} t={t} />}
         </>
       ) : tab === 'care' ? (
-        <CareBoard state={state} onTake={takeShift} onOpenSpot={openSpot} />
+        <CareBoard state={state} onTake={takeShift} onOpenSpot={openSpot} t={t} />
       ) : (
-        <MyCare state={state} onOpenSpot={openSpot} />
+        <MyCare state={state} onOpenSpot={openSpot} t={t} />
       )}
 
       <nav className="bottom-nav" aria-label="Primary">
-        <button className={tab === 'map' ? 'active' : ''} onClick={() => { setTab('map'); setSheet('nearby'); }}><Home size={20} /><small>{en.nav.map}</small></button>
-        <button className={tab === 'care' ? 'active' : ''} onClick={() => setTab('care')}><ListChecks size={20} /><small>{en.nav.care}</small></button>
-        <button className="create" aria-label={en.actions.createSpot} onClick={() => { setTab('map'); setSheet('createSpot'); }}><Plus size={27} /></button>
-        <button className={tab === 'myCare' ? 'active' : ''} onClick={() => setTab('myCare')}><HandHeart size={20} /><small>{en.nav.myCare}</small></button>
+        <button className={tab === 'map' ? 'active' : ''} onClick={() => { setTab('map'); setSheet('nearby'); }}><Home size={20} /><small>{t.nav.map}</small></button>
+        <button className={tab === 'care' ? 'active' : ''} onClick={() => setTab('care')}><ListChecks size={20} /><small>{t.nav.care}</small></button>
+        <button className="create" aria-label={t.actions.createSpot} onClick={() => { setTab('map'); setSheet('createSpot'); }}><Plus size={27} /></button>
+        <button className={tab === 'myCare' ? 'active' : ''} onClick={() => setTab('myCare')}><HandHeart size={20} /><small>{t.nav.myCare}</small></button>
         <button onClick={() => { setTab('map'); setSheet('nearby'); }}><Waves size={20} /><small>Nearby</small></button>
       </nav>
       {toast && <div className="toast" role="status"><Check size={16} />{toast}<button aria-label="Dismiss" onClick={() => setToast('')}><X size={14} /></button></div>}
