@@ -73,6 +73,7 @@ const statusColor = {
   dueSoon: '#d6944a',
   needsSomeone: '#c85f50',
 };
+const nearbyCareLimitMeters = 5000;
 
 const formatTime = (iso: string) => new Intl.DateTimeFormat('en', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 const formatDate = (iso: string) => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(iso));
@@ -680,6 +681,13 @@ function AwaySheet({ spot, onSubmit, onBack, onClose, t }: { spot: Spot; onSubmi
 
 function CareBoard({ state, onTake, onOpenSpot, t }: { state: DemoState; onTake: (shiftId: string) => void; onOpenSpot: (spotId: string) => void; t: Messages }) {
   const ordered = [...state.shifts].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  const nearbyOpenShifts = ordered
+    .filter((shift) => shift.status === 'open')
+    .map((shift) => ({ shift, spot: getSpot(state, shift.spotId) }))
+    .filter((item): item is { shift: Shift; spot: Spot } => {
+      if (!item.spot) return false;
+      return item.spot.distanceMeters <= nearbyCareLimitMeters;
+    });
   return (
     <main className="panel-page">
       <header className="page-head">
@@ -687,10 +695,9 @@ function CareBoard({ state, onTake, onOpenSpot, t }: { state: DemoState; onTake:
         <h1>{t.nav.care}</h1>
       </header>
       <section className="list-section">
-        <h2>{t.sheets.needsSomeone}</h2>
-        {ordered.filter((shift) => shift.status === 'open').map((shift) => {
-          const spot = getSpot(state, shift.spotId);
-          if (!spot) return null;
+        <h2>{t.sheets.nearbyOpenCare}</h2>
+        <p className="muted small">{t.sheets.globalSamplesHidden}</p>
+        {nearbyOpenShifts.length === 0 ? <p className="muted">{t.sheets.noNearbyOpenCare}</p> : nearbyOpenShifts.map(({ shift, spot }) => {
           return (
             <article className="shift-card" key={shift.id} onClick={() => onOpenSpot(spot.id)}>
               <div>
