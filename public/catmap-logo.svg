@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Catmap logo</title>
+  <desc id="desc">A community cat face inside a map pin.</desc>
+  <rect width="256" height="256" rx="56" fill="#f6f4ee"/>
+  <path d="M128 232c-17-42-72-88-72-144 0-49 33-76 72-76s72 27 72 76c0 56-55 102-72 144Z" fill="#1f2a24"/>
+  <path d="M84 94c0-14 6-26 17-34l4-30 26 26 26-26 4 30c11 8 17 20 17 34 0 36-21 58-50 58S84 130 84 94Z" fill="#fff"/>
+  <circle cx="108" cy="94" r="7" fill="#1f2a24"/>
+  <circle cx="148" cy="94" r="7" fill="#1f2a24"/>
+  <path d="M128 111v8m-20 11c12 11 28 11 40 0" fill="none" stroke="#1f2a24" stroke-width="9" stroke-linecap="round"/>
+  <path d="M76 184c14 12 32 20 52 20s38-8 52-20" fill="none" stroke="#5f7c69" stroke-width="12" stroke-linecap="round"/>
+</svg>

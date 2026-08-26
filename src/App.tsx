@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl, { GeoJSONSource, Map, MapLayerMouseEvent } from 'maplibre-gl';
 import {
   CalendarDays,
@@ -11,6 +11,7 @@ import {
   ListChecks,
   LocateFixed,
   MapPin,
+  Minus,
   Plus,
   Search,
   Settings,
@@ -129,6 +130,35 @@ const createCatIconImage = () => {
   return context.getImageData(0, 0, 64, 64);
 };
 
+const createSelectedPinImage = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 72;
+  canvas.height = 88;
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  context.shadowColor = 'rgba(31, 42, 36, 0.22)';
+  context.shadowBlur = 10;
+  context.shadowOffsetY = 5;
+  context.fillStyle = '#1f2a24';
+  context.beginPath();
+  context.moveTo(36, 80);
+  context.bezierCurveTo(31, 67, 14, 52, 14, 32);
+  context.bezierCurveTo(14, 18, 24, 8, 36, 8);
+  context.bezierCurveTo(48, 8, 58, 18, 58, 32);
+  context.bezierCurveTo(58, 52, 41, 67, 36, 80);
+  context.closePath();
+  context.fill();
+
+  context.shadowColor = 'transparent';
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.arc(36, 32, 13, 0, Math.PI * 2);
+  context.fill();
+
+  return context.getImageData(0, 0, 72, 88);
+};
+
 function AppMap({
   spots,
   selectedSpotId,
@@ -143,6 +173,31 @@ function AppMap({
   const mapNode = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const clickRef = useRef(onSelect);
+  const spotsRef = useRef(spots);
+  const selectedSpotIdRef = useRef(selectedSpotId);
+
+  const writeSpotSource = useCallback((targetMap: Map) => {
+    const source = targetMap.getSource('spots') as GeoJSONSource | undefined;
+    if (!source) return;
+    source.setData({
+      type: 'FeatureCollection',
+      features: spotsRef.current.map((spot) => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [spot.publicLongitude, spot.publicLatitude],
+        },
+        properties: {
+          id: spot.id,
+          name: spot.name,
+          status: spot.status,
+          statusScore: statusScore[spot.status],
+          color: statusColor[spot.status],
+          selected: selectedSpotIdRef.current === spot.id,
+        },
+      })),
+    });
+  }, []);
 
   useEffect(() => {
     clickRef.current = onSelect;
@@ -178,6 +233,10 @@ function AppMap({
       if (catIcon && !map.hasImage('cat-spot')) {
         map.addImage('cat-spot', catIcon);
       }
+      const selectedPin = createSelectedPinImage();
+      if (selectedPin && !map.hasImage('selected-pin')) {
+        map.addImage('selected-pin', selectedPin);
+      }
 
       map.addSource('spots', {
         type: 'geojson',
@@ -186,8 +245,8 @@ function AppMap({
           features: [],
         },
         cluster: true,
-        clusterRadius: 96,
-        clusterMaxZoom: 16,
+        clusterRadius: 180,
+        clusterMaxZoom: 14,
         clusterProperties: {
           maxStatus: ['max', ['get', 'statusScore']],
         },
@@ -256,10 +315,30 @@ function AppMap({
         },
       });
 
-      map.on('click', 'spot-points', (event: MapLayerMouseEvent) => {
+      map.addLayer({
+        id: 'spot-selected-pin',
+        type: 'symbol',
+        source: 'spots',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'selected'], true]],
+        layout: {
+          'icon-image': 'selected-pin',
+          'icon-size': 0.48,
+          'icon-anchor': 'bottom',
+          'icon-offset': [0, -16],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+      });
+
+      writeSpotSource(map);
+
+      const openSpotFromMap = (event: MapLayerMouseEvent) => {
         const id = event.features?.[0]?.properties?.id;
         if (typeof id === 'string') clickRef.current(id);
-      });
+      };
+      for (const layerId of ['spot-points', 'spot-cat-icons', 'spot-selected-pin']) {
+        map.on('click', layerId, openSpotFromMap);
+      }
 
       map.on('click', 'spot-clusters', (event: MapLayerMouseEvent) => {
         const feature = event.features?.[0];
@@ -272,7 +351,7 @@ function AppMap({
         });
       });
 
-      for (const layerId of ['spot-points', 'spot-clusters']) {
+      for (const layerId of ['spot-points', 'spot-cat-icons', 'spot-selected-pin', 'spot-clusters']) {
         map.on('mouseenter', layerId, () => {
           map.getCanvas().style.cursor = 'pointer';
         });
@@ -289,39 +368,19 @@ function AppMap({
     );
 
     return () => map.remove();
-  }, [onReady]);
+  }, [onReady, writeSpotSource]);
 
   useEffect(() => {
+    spotsRef.current = spots;
+    selectedSpotIdRef.current = selectedSpotId;
     const map = mapRef.current;
     if (!map) return;
-    const setSpotData = () => {
-      const source = map.getSource('spots') as GeoJSONSource | undefined;
-      if (!source) return;
-      source.setData({
-        type: 'FeatureCollection',
-        features: spots.map((spot) => ({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [spot.publicLongitude, spot.publicLatitude],
-          },
-          properties: {
-            id: spot.id,
-            name: spot.name,
-            status: spot.status,
-            statusScore: statusScore[spot.status],
-            color: statusColor[spot.status],
-            selected: selectedSpotId === spot.id,
-          },
-        })),
-      });
-    };
     if (map.isStyleLoaded() && map.getSource('spots')) {
-      setSpotData();
+      writeSpotSource(map);
       return;
     }
-    map.once('load', setSpotData);
-  }, [spots, selectedSpotId]);
+    map.once('load', () => writeSpotSource(map));
+  }, [spots, selectedSpotId, writeSpotSource]);
 
   return <div className="map-canvas" ref={mapNode} aria-label="Catmap public spot map" />;
 }
@@ -425,6 +484,28 @@ function SheetShell({
   );
 }
 
+function BrandLogo() {
+  return (
+    <span className="brand-logo" aria-hidden="true">
+      <svg viewBox="0 0 72 72" role="img">
+        <path className="logo-pin" d="M36 66C31 54 16 42 16 27 16 14 25 7 36 7s20 7 20 20c0 15-15 27-20 39Z" />
+        <path className="logo-face" d="M24 31c0-3 1-6 4-8l1-8 7 7 7-7 1 8c3 2 4 5 4 8 0 8-5 13-12 13s-12-5-12-13Z" />
+        <circle cx="31" cy="31" r="1.8" />
+        <circle cx="41" cy="31" r="1.8" />
+        <path className="logo-mouth" d="M36 35v2m-5 2c3 3 7 3 10 0" />
+      </svg>
+    </span>
+  );
+}
+
+function Wordmark() {
+  return (
+    <span className="wordmark" aria-label="Catmap">
+      Cat<span>map</span>
+    </span>
+  );
+}
+
 function SpotCard({ spot, shift, onOpen, onTake, t }: { spot: Spot; shift?: Shift; onOpen: () => void; onTake: () => void; t: Messages }) {
   return (
     <article className="care-card featured" onClick={onOpen}>
@@ -435,10 +516,10 @@ function SpotCard({ spot, shift, onOpen, onTake, t }: { spot: Spot; shift?: Shif
           <span className="distance">{spot.distanceMeters} m</span>
         </div>
         <h2>{spot.name}</h2>
-        <p>{formatTime(spot.nextCareAt)} · {shift ? shift.tasks.map((task) => t.task[task]).join(' + ') : 'Routine care'}</p>
+        <p>{formatTime(spot.nextCareAt)} · {shift ? shift.tasks.map((task) => t.task[task]).join(' + ') : t.sheets.routineCare}</p>
         <div className="care-meta">
-          <span>{spot.lastCaredAt ? `Last cared ${formatDate(spot.lastCaredAt)}` : 'No recent care'}</span>
-          <span>{spot.catCountEstimate} cats seen</span>
+          <span>{spot.lastCaredAt ? `${t.sheets.lastCared} ${formatDate(spot.lastCaredAt)}` : t.sheets.noRecentCare}</span>
+          <span>{spot.catCountEstimate} {t.sheets.catsSeen}</span>
         </div>
         <button
           className="primary"
@@ -448,7 +529,7 @@ function SpotCard({ spot, shift, onOpen, onTake, t }: { spot: Spot; shift?: Shif
             onTake();
           }}
         >
-          {shift?.status === 'assigned' ? 'Covered by Alex' : t.actions.takeIt}
+          {shift?.status === 'assigned' ? t.sheets.coveredByAlex : t.actions.takeIt}
         </button>
       </div>
     </article>
@@ -464,18 +545,18 @@ function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway, t }: { st
     <SheetShell title={t.sheets.nearbyCare} eyebrow={t.sheets.tonight} defaultExpanded={false}>
       <div className="status-strip">
         <span className="dot danger" />
-        <strong>{count} spots need care</strong>
-        <span>nearby</span>
+        <strong>{count} {t.sheets.spotsNeedCare}</strong>
+        <span>{t.sheets.nearby}</span>
       </div>
       <SpotCard spot={featured} shift={shift} onOpen={() => onOpenSpot(featured.id)} onTake={() => shift && onTake(shift.id)} t={t} />
       <div className="quick-grid">
         <button className="quick-card" onClick={onQuickCare}>
           <span className="quick-icon"><ClipboardCheck size={18} /></span>
-          <span><strong>{t.actions.careNow}</strong><small>Log a visit</small></span>
+          <span><strong>{t.actions.careNow}</strong><small>{t.sheets.logVisit}</small></span>
         </button>
         <button className="quick-card" onClick={onAway}>
           <span className="quick-icon"><CalendarDays size={18} /></span>
-          <span><strong>{t.actions.imAway}</strong><small>Find coverage</small></span>
+          <span><strong>{t.actions.imAway}</strong><small>{t.sheets.findCoverage}</small></span>
         </button>
       </div>
     </SheetShell>
@@ -494,8 +575,8 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose, t }:
         <p>{spot.description}</p>
       </div>
       <div className="info-grid">
-        <div><span>Last cared for</span><strong>{spot.lastCaredAt ? `${formatTime(spot.lastCaredAt)} · ${spot.lastCaredBy}` : 'No log yet'}</strong></div>
-        <div><span>Next care</span><strong>{formatTime(spot.nextCareAt)}</strong></div>
+        <div><span>{t.sheets.lastCaredFor}</span><strong>{spot.lastCaredAt ? `${formatTime(spot.lastCaredAt)} · ${spot.lastCaredBy}` : t.sheets.noLogYet}</strong></div>
+        <div><span>{t.sheets.nextCare}</span><strong>{formatTime(spot.nextCareAt)}</strong></div>
       </div>
       {routine && <TaskChips tasks={routine.tasks} t={t} />}
       <div className="cat-list">
@@ -504,7 +585,7 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose, t }:
           <article className="cat-row" key={cat.id}>
             <span className="cat-token" aria-hidden="true" />
             <div>
-              <strong>{cat.name ?? 'Community cat'}</strong>
+              <strong>{cat.name ?? t.sheets.communityCat}</strong>
               <small>{cat.coatColor}{cat.breed ? ` · ${cat.breed}` : ''}</small>
             </div>
           </article>
@@ -521,7 +602,7 @@ function SpotDetail({ state, spot, onCare, onTake, onAway, onBack, onClose, t }:
       </div>
       <div className="action-row">
         <button className="primary" onClick={onCare}>{t.actions.careNow}</button>
-        <button className="secondary" disabled={!shift} onClick={() => shift && onTake(shift.id)}>{shift ? t.actions.takeIt : 'No open shift'}</button>
+        <button className="secondary" disabled={!shift} onClick={() => shift && onTake(shift.id)}>{shift ? t.actions.takeIt : t.sheets.noOpenShift}</button>
         <button className="secondary" onClick={onAway}>{t.actions.imAway}</button>
       </div>
     </SheetShell>
@@ -548,22 +629,22 @@ function CareNow({ spot, onComplete, onBack, onClose, t }: { spot: Spot; onCompl
           );
         })}
       </div>
-      <div className="segmented" aria-label="Food amount">
+      <div className="segmented" aria-label={t.sheets.foodAmount}>
         {(['small', 'medium', 'large'] as const).map((amount) => (
-          <button className={foodAmount === amount ? 'active' : ''} key={amount} onClick={() => setFoodAmount(amount)}>{amount}</button>
+          <button className={foodAmount === amount ? 'active' : ''} key={amount} onClick={() => setFoodAmount(amount)}>{t.sheets[amount]}</button>
         ))}
       </div>
       <label className="field compact">
-        Cats seen
+        {t.sheets.catsSeenLabel}
         <input type="number" min="0" value={catsSeen} onChange={(event) => setCatsSeen(Number(event.target.value))} />
       </label>
       <label className="checkline">
         <input type="checkbox" checked={cleanupConfirmed} onChange={(event) => setCleanupConfirmed(event.target.checked)} />
-        Cleanup confirmed
+        {t.sheets.cleanupConfirmed}
       </label>
       <label className="field">
-        Note
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional short note" />
+        {t.sheets.note}
+        <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={t.sheets.optionalNote} />
       </label>
       <button className="primary sticky-action" disabled={tasks.length === 0} onClick={() => onComplete(tasks, catsSeen, foodAmount, cleanupConfirmed, note)}>
         {t.actions.completeCare}
@@ -576,20 +657,20 @@ function AwaySheet({ spot, onSubmit, onBack, onClose, t }: { spot: Spot; onSubmi
   const [from, setFrom] = useState(dateInput(2));
   const [until, setUntil] = useState(dateInput(7));
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
-  const [message, setMessage] = useState("I'll be away for a few days. Can someone help with this spot?");
+  const [message, setMessage] = useState<string>(t.sheets.defaultAwayMessage);
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title="I'm away" eyebrow={spot.name} onBack={onBack} onClose={onClose}>
+    <SheetShell title={t.sheets.awayTitle} eyebrow={spot.name} onBack={onBack} onClose={onClose}>
       <div className="two-fields">
-        <label className="field">From<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-        <label className="field">Until<input type="date" value={until} onChange={(event) => setUntil(event.target.value)} /></label>
+        <label className="field">{t.sheets.from}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+        <label className="field">{t.sheets.until}<input type="date" value={until} onChange={(event) => setUntil(event.target.value)} /></label>
       </div>
       <div className="large-options compact-options">
         {(['food', 'water', 'cleanup', 'catCheck'] as CareTask[]).map((task) => (
           <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>{t.task[task]}</button>
         ))}
       </div>
-      <label className="field">Message<textarea value={message} onChange={(event) => setMessage(event.target.value)} /></label>
+      <label className="field">{t.sheets.message}<textarea value={message} onChange={(event) => setMessage(event.target.value)} /></label>
       <button className="primary sticky-action" disabled={!from || !until || tasks.length === 0} onClick={() => onSubmit(from, until, tasks, message)}>
         {t.actions.askCoverage}
       </button>
@@ -606,7 +687,7 @@ function CareBoard({ state, onTake, onOpenSpot, t }: { state: DemoState; onTake:
         <h1>{t.nav.care}</h1>
       </header>
       <section className="list-section">
-        <h2>Needs someone</h2>
+        <h2>{t.sheets.needsSomeone}</h2>
         {ordered.filter((shift) => shift.status === 'open').map((shift) => {
           const spot = getSpot(state, shift.spotId);
           if (!spot) return null;
@@ -635,14 +716,14 @@ function CoverageBoard({ state, onTake, t }: { state: DemoState; onTake: (shiftI
     return (
       <section className="empty-state">
         <CalendarDays size={22} />
-        <h2>No handoffs yet</h2>
-        <p>Create an away request from a spot to see coverable shifts here.</p>
+        <h2>{t.sheets.noHandoffsYet}</h2>
+        <p>{t.sheets.handoffEmptyBody}</p>
       </section>
     );
   }
   return (
     <section className="list-section">
-      <h2>Coverage requests</h2>
+      <h2>{t.sheets.coverageRequests}</h2>
       {state.handoffRequests.map((request) => {
         const spot = getSpot(state, request.spotId);
         const shifts = request.shiftIds.map((id) => state.shifts.find((shift) => shift.id === id)).filter(Boolean) as Shift[];
@@ -658,7 +739,7 @@ function CoverageBoard({ state, onTake, t }: { state: DemoState; onTake: (shiftI
               {shifts.map((shift) => (
                 <button key={shift.id} className={shift.status === 'open' ? '' : 'covered'} disabled={shift.status !== 'open'} onClick={() => onTake(shift.id)}>
                   <strong>{formatDate(shift.startsAt)}</strong>
-                  <span>{shift.status === 'open' ? 'Needs help' : 'Covered by Alex'}</span>
+                  <span>{shift.status === 'open' ? t.sheets.needsHelp : t.sheets.coveredByAlex}</span>
                 </button>
               ))}
             </div>
@@ -680,8 +761,8 @@ function MyCare({ state, onOpenSpot, t }: { state: DemoState; onOpenSpot: (spotI
         <h1>{t.nav.myCare}</h1>
       </header>
       <section className="list-section">
-        <h2>Upcoming</h2>
-        {mine.length === 0 ? <p className="muted">No assigned care yet.</p> : mine.map((shift) => {
+        <h2>{t.sheets.upcoming}</h2>
+        {mine.length === 0 ? <p className="muted">{t.sheets.noAssignedCare}</p> : mine.map((shift) => {
           const spot = getSpot(state, shift.spotId);
           if (!spot) return null;
           return (
@@ -693,34 +774,35 @@ function MyCare({ state, onOpenSpot, t }: { state: DemoState; onOpenSpot: (spotI
         })}
       </section>
       <section className="list-section">
-        <h2>My spots</h2>
+        <h2>{t.sheets.mySpots}</h2>
         {mySpots.map((spot) => <button className="plain-row" key={spot.id} onClick={() => onOpenSpot(spot.id)}>{spot.name}<Badge status={spot.status} t={t} /></button>)}
       </section>
       <section className="list-section three-tabs" aria-label="Care summaries">
-        <button>My spots</button>
-        <button>My handoffs</button>
-        <button>Care history</button>
+        <button>{t.sheets.mySpots}</button>
+        <button>{t.sheets.myHandoffs}</button>
+        <button>{t.sheets.careHistory}</button>
       </section>
     </main>
   );
 }
 
 function CreateSpot({ center, onCreate, onBack, onClose, t }: { center: [number, number]; onCreate: (name: string, description: string, tasks: CareTask[]) => void; onBack: () => void; onClose: () => void; t: Messages }) {
-  const [name, setName] = useState('Courtyard corner');
-  const [description, setDescription] = useState('Approximate public marker. Exact location stays private.');
+  const [name, setName] = useState<string>(t.sheets.defaultSpotName);
+  const [description, setDescription] = useState<string>(t.sheets.defaultSpotDescription);
   const [tasks, setTasks] = useState<CareTask[]>(['food', 'water']);
   const toggle = (task: CareTask) => setTasks((current) => (current.includes(task) ? current.filter((item) => item !== task) : [...current, task]));
   return (
-    <SheetShell title={t.sheets.newSpot} eyebrow="Pick from current map center" onBack={onBack} onClose={onClose}>
-      <div className="privacy-note"><MapPin size={18} /> Public marker uses an approximate location. Exact coordinates are stored separately for future caretaker-only access.</div>
-      <label className="field">Spot name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
-      <label className="field">Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+    <SheetShell title={t.sheets.newSpot} eyebrow={t.sheets.pickMapCenter} onBack={onBack} onClose={onClose}>
+      <div className="privacy-note"><MapPin size={18} /> {t.sheets.publicMarkerNote}</div>
+      <p className="muted small">{t.sheets.moveMapToPin}</p>
+      <label className="field">{t.sheets.spotName}<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <label className="field">{t.sheets.description}<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <div className="large-options compact-options">
         {(['food', 'water', 'cleanup', 'catCheck'] as CareTask[]).map((task) => (
           <button className={tasks.includes(task) ? 'selected' : ''} key={task} onClick={() => toggle(task)}>{t.task[task]}</button>
         ))}
       </div>
-      <p className="muted small">Map center: {center[1].toFixed(4)}, {center[0].toFixed(4)}</p>
+      <p className="muted small">{t.sheets.mapCenter}: {center[1].toFixed(4)}, {center[0].toFixed(4)}</p>
       <button className="primary sticky-action" disabled={!name.trim() || tasks.length === 0} onClick={() => onCreate(name, description, tasks)}>{t.actions.saveSpot}</button>
     </SheetShell>
   );
@@ -749,7 +831,7 @@ function SettingsSheet({
       <section className="settings-block">
         <h3>{t.sheets.mapProvider}</h3>
         <p className="muted small">
-          {mapProvider === 'maplibre' ? 'MapLibre demo map. Naver/Kakao can be enabled with keys.' : mapProvider}
+          {mapProvider === 'maplibre' ? t.sheets.mapProviderInfo : mapProvider}
         </p>
       </section>
     </SheetShell>
@@ -766,6 +848,7 @@ export function App() {
   const [map, setMap] = useState<Map | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>([127.111, 37.395]);
+  const [zoomLevel, setZoomLevel] = useState(14.3);
   const t = messages[locale];
   const selectedSpot = useMemo(() => state.spots.find((spot) => spot.id === selectedSpotId) ?? state.spots[0], [state.spots, selectedSpotId]);
 
@@ -780,9 +863,15 @@ export function App() {
     const onMove = () => {
       const center = map.getCenter();
       setMapCenter([center.lng, center.lat]);
+      setZoomLevel(Number(map.getZoom().toFixed(1)));
     };
     map.on('moveend', onMove);
-    return () => { map.off('moveend', onMove); };
+    map.on('zoomend', onMove);
+    onMove();
+    return () => {
+      map.off('moveend', onMove);
+      map.off('zoomend', onMove);
+    };
   }, [map]);
 
   const save = (next: DemoState, message: string) => {
@@ -796,7 +885,7 @@ export function App() {
     const spot = state.spots.find((item) => item.id === spotId);
     if (spot && map) map.flyTo({ center: [spot.publicLongitude, spot.publicLatitude], zoom: 15, speed: 0.8 });
   };
-  const takeShift = (shiftId: string) => save(demoRepository.takeShift(state, shiftId), 'Care shift added to My Care.');
+  const takeShift = (shiftId: string) => save(demoRepository.takeShift(state, shiftId), t.toast.shiftTaken);
   const closeSheet = () => setSheet('nearby');
   const changeLocale = (nextLocale: Locale) => {
     setLocale(nextLocale);
@@ -819,7 +908,7 @@ export function App() {
       <div className="topbar">
         <div>
           <p className="eyebrow">{t.location} · {t.demoMode}</p>
-          <div className="brand-row"><div className="brand-mark">C</div><div><strong>{t.appName}</strong><span>{t.tagline}</span></div></div>
+          <div className="brand-row"><BrandLogo /><div><strong><Wordmark /></strong><span className="brand-tagline">{t.tagline}</span></div></div>
         </div>
         <button className="icon-button" aria-label="Settings" onClick={() => setSheet('settings')}><Settings size={19} /></button>
       </div>
@@ -832,9 +921,32 @@ export function App() {
             <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t.sheets.searchPlaceholder} aria-label={t.sheets.searchPlaceholder} />
           </form>
           <div className="map-controls">
-            <button className="floating" aria-label="Use current location" onClick={() => navigator.geolocation?.getCurrentPosition((pos) => map?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14.5 }))}><LocateFixed size={20} /></button>
-            <button className="floating" aria-label="Create spot" onClick={() => setSheet('createSpot')}><Plus size={22} /></button>
+            <button className="floating" aria-label={t.actions.locateMe} onClick={() => navigator.geolocation?.getCurrentPosition((pos) => map?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14.5 }))}><LocateFixed size={20} /></button>
+            <div className="zoom-control" aria-label={t.sheets.mapZoomControls}>
+              <button className="floating compact" aria-label={t.actions.zoomIn} onClick={() => map?.zoomIn()}><Plus size={18} /></button>
+              <input
+                className="zoom-range"
+                aria-label={t.sheets.mapZoomLevel}
+                type="range"
+                min="10"
+                max="18"
+                step="0.1"
+                value={zoomLevel}
+                onChange={(event) => {
+                  const zoom = Number(event.target.value);
+                  setZoomLevel(zoom);
+                  map?.zoomTo(zoom);
+                }}
+              />
+              <button className="floating compact" aria-label={t.actions.zoomOut} onClick={() => map?.zoomOut()}><Minus size={18} /></button>
+              <span className="zoom-value">{zoomLevel.toFixed(1)}</span>
+            </div>
           </div>
+          {sheet === 'createSpot' && (
+            <div className="draft-pin" aria-hidden="true">
+              <MapPin size={40} />
+            </div>
+          )}
           {sheet === 'nearby' && <NearbySheet state={state} onOpenSpot={openSpot} onTake={takeShift} onQuickCare={() => setSheet('careNow')} onAway={() => setSheet('away')} t={t} />}
           {sheet === 'spot' && selectedSpot && <SpotDetail state={state} spot={selectedSpot} onCare={() => setSheet('careNow')} onTake={takeShift} onAway={() => setSheet('away')} onBack={() => setSheet('nearby')} onClose={closeSheet} t={t} />}
           {sheet === 'careNow' && selectedSpot && (
@@ -844,7 +956,7 @@ export function App() {
               onClose={closeSheet}
               t={t}
               onComplete={(tasks, catsSeen, foodAmount, cleanupConfirmed, note) => {
-                save(demoRepository.completeCare(state, { spotId: selectedSpot.id, tasks, catsSeen, foodAmount, cleanupConfirmed, note }), 'Care logged. This spot is cared today.');
+                save(demoRepository.completeCare(state, { spotId: selectedSpot.id, tasks, catsSeen, foodAmount, cleanupConfirmed, note }), t.toast.careLogged);
                 setSheet('spot');
               }}
             />
@@ -856,7 +968,7 @@ export function App() {
               onClose={closeSheet}
               t={t}
               onSubmit={(from, until, tasks, message) => {
-                save(demoRepository.createHandoff(state, selectedSpot.id, from, until, tasks, message), 'Coverage request created.');
+                save(demoRepository.createHandoff(state, selectedSpot.id, from, until, tasks, message), t.toast.coverageCreated);
                 setTab('care');
               }}
             />
@@ -881,7 +993,7 @@ export function App() {
                     },
                     tasks,
                   ),
-                  'New care spot created.',
+                  t.toast.spotCreated,
                 );
                 setSheet('nearby');
               }}
@@ -895,14 +1007,14 @@ export function App() {
         <MyCare state={state} onOpenSpot={openSpot} t={t} />
       )}
 
-      <nav className="bottom-nav" aria-label="Primary">
+      <nav className="bottom-nav" aria-label={t.sheets.primaryNavigation}>
         <button className={tab === 'map' ? 'active' : ''} onClick={() => { setTab('map'); setSheet('nearby'); }}><Home size={20} /><small>{t.nav.map}</small></button>
         <button className={tab === 'care' ? 'active' : ''} onClick={() => setTab('care')}><ListChecks size={20} /><small>{t.nav.care}</small></button>
         <button className="create" aria-label={t.actions.createSpot} onClick={() => { setTab('map'); setSheet('createSpot'); }}><Plus size={27} /></button>
         <button className={tab === 'myCare' ? 'active' : ''} onClick={() => setTab('myCare')}><HandHeart size={20} /><small>{t.nav.myCare}</small></button>
-        <button onClick={() => { setTab('map'); setSheet('nearby'); }}><Waves size={20} /><small>Nearby</small></button>
+        <button onClick={() => { setTab('map'); setSheet('nearby'); }}><Waves size={20} /><small>{t.nav.nearby}</small></button>
       </nav>
-      {toast && <div className="toast" role="status"><Check size={16} />{toast}<button aria-label="Dismiss" onClick={() => setToast('')}><X size={14} /></button></div>}
+      {toast && <div className="toast" role="status"><Check size={16} />{toast}<button aria-label={t.sheets.dismiss} onClick={() => setToast('')}><X size={14} /></button></div>}
     </div>
   );
 }

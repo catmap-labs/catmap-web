@@ -38,9 +38,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .topbar > * { pointer-events: auto; }
 .eyebrow { margin: 0; font-size: 12px; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
 .brand-row { display: flex; align-items: center; gap: 9px; margin-top: 4px; }
-.brand-mark { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--ink); color: white; font-weight: 800; }
-.brand-row strong { display: block; font-size: 22px; line-height: 1; letter-spacing: -.02em; }
-.brand-row span { display: none; color: var(--muted); font-size: 12px; margin-top: 3px; }
+.brand-logo { width: 34px; height: 34px; display: grid; place-items: center; filter: drop-shadow(0 5px 10px rgba(31,42,36,.16)); }
+.brand-logo svg { width: 34px; height: 34px; display: block; }
+.logo-pin { fill: var(--ink); }
+.logo-face { fill: white; }
+.logo-mouth { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+.brand-row strong { display: block; font-size: 22px; line-height: 1; letter-spacing: 0; }
+.wordmark { font-weight: 900; letter-spacing: 0; text-transform: uppercase; }
+.wordmark span { display: inline; color: var(--green); font: inherit; }
+.brand-tagline { display: none; color: var(--muted); font-size: 12px; margin-top: 3px; }
 
 .icon-button, .floating {
   border: 0; color: var(--ink); background: rgba(255,255,255,.95);
@@ -49,8 +55,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 }
 .icon-button { width: 42px; height: 42px; border-radius: 999px; }
 .icon-button.subtle { background: rgba(255,255,255,.68); box-shadow: none; border: 1px solid var(--line); }
-.map-controls { position: fixed; right: 16px; top: calc(112px + env(safe-area-inset-top)); z-index: 12; display: grid; gap: 10px; }
+.map-controls { position: fixed; right: 16px; top: calc(112px + env(safe-area-inset-top)); z-index: 12; display: grid; gap: 10px; justify-items: center; }
 .floating { width: 44px; height: 44px; border-radius: 14px; }
+.floating.compact { width: 34px; height: 34px; border-radius: 11px; box-shadow: none; background: transparent; }
+.zoom-control {
+  display: grid; justify-items: center; gap: 7px; padding: 7px 5px 8px;
+  border: 1px solid rgba(31,42,36,.08); border-radius: 17px;
+  background: rgba(255,255,255,.95); box-shadow: 0 8px 22px rgba(31,42,36,.12);
+}
+.zoom-range {
+  width: 94px; height: 18px; margin: 35px -33px; transform: rotate(-90deg);
+  accent-color: var(--green); cursor: pointer;
+}
+.zoom-value { font-size: 10px; color: var(--muted); font-weight: 900; }
 .map-search {
   position: fixed; z-index: 14; left: 18px; right: 76px; top: calc(112px + env(safe-area-inset-top));
   display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 13px;
@@ -59,6 +76,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 }
 .map-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-weight: 700; }
 .map-search input::placeholder { color: #8a938e; font-weight: 600; }
+
+.draft-pin {
+  position: fixed; z-index: 13; left: 50%; top: 50%;
+  transform: translate(-50%, -92%);
+  display: grid; place-items: center;
+  color: var(--red);
+  filter: drop-shadow(0 10px 16px rgba(31,42,36,.28));
+  pointer-events: none;
+}
+.draft-pin::after {
+  content: ""; position: absolute; bottom: -2px; width: 20px; height: 7px;
+  border-radius: 999px; background: rgba(31,42,36,.18); transform: translateY(100%);
+}
+.draft-pin svg { fill: rgba(255,255,255,.92); stroke-width: 2.8px; }
 
 .marker {
   width: 46px; height: 46px; border: 4px solid white; border-radius: 16px;
@@ -223,10 +254,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 
 @media (min-width: 760px) {
   .topbar { padding-left: 28px; padding-right: 28px; }
-  .brand-row span { display: block; }
+  .brand-tagline { display: block; }
   .sheet { left: auto; right: 28px; bottom: 92px; width: min(420px, 42vw); border-radius: 28px; max-height: calc(100svh - 150px); }
   .map-search { left: 28px; right: auto; width: min(430px, 36vw); }
-  .bottom-nav { left: 28px; right: auto; bottom: 22px; width: 430px; border: 1px solid var(--line); border-radius: 24px; padding-bottom: 8px; height: 74px; box-shadow: var(--shadow); }
+  .bottom-nav { left: 50%; right: auto; bottom: 22px; width: 430px; transform: translateX(-50%); border: 1px solid var(--line); border-radius: 24px; padding-bottom: 8px; height: 74px; box-shadow: var(--shadow); }
   .toast { left: auto; right: 28px; width: 390px; bottom: 26px; }
   .panel-page { padding-left: max(28px, 6vw); padding-right: max(28px, 44vw); }
   .maplibregl-ctrl-bottom-left { bottom: 20px; }
