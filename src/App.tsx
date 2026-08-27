@@ -29,7 +29,7 @@ import { CareTask, DemoState, Shift, Spot } from './types/domain';
 type Tab = 'map' | 'care' | 'myCare';
 type Sheet = 'nearby' | 'spot' | 'careNow' | 'away' | 'createSpot' | 'settings';
 type Locale = 'ko' | 'en';
-type RegionScope = 'all' | 'bundang' | 'pangyo' | 'jeongja' | 'sunae' | 'seohyeon';
+type RegionScope = 'all' | 'gangseo' | 'jeungmi' | 'bundang' | 'pangyo' | 'jeongja' | 'sunae' | 'seohyeon';
 
 const messages = { ko, en };
 type Messages = (typeof messages)[Locale];
@@ -43,7 +43,9 @@ const regionScopes: Array<{
   zoom: number;
   match: (spot: Spot) => boolean;
 }> = [
-  { id: 'all', label: { ko: '전체', en: 'All' }, center: [127.111, 37.395], zoom: 13.2, match: () => true },
+  { id: 'all', label: { ko: '전체', en: 'All' }, center: [126.996, 37.488], zoom: 10.4, match: () => true },
+  { id: 'gangseo', label: { ko: '서울 강서구', en: 'Gangseo-gu' }, center: [126.8596, 37.5582], zoom: 14.2, match: (spot) => spot.countryCode === 'KR' && spot.city === 'Seoul' && spot.district === 'Gangseo-gu' },
+  { id: 'jeungmi', label: { ko: '증미역', en: 'Jeungmi Station' }, center: [126.8611, 37.5584], zoom: 15.4, match: (spot) => spot.neighborhood === 'Jeungmi-dong' },
   { id: 'bundang', label: { ko: '성남시 분당구', en: 'Bundang-gu' }, center: [127.1189, 37.3827], zoom: 13.2, match: (spot) => spot.countryCode === 'KR' && spot.district === 'Bundang-gu' },
   { id: 'pangyo', label: { ko: '판교동', en: 'Pangyo-dong' }, center: [127.1115, 37.3948], zoom: 15, match: (spot) => spot.neighborhood === 'Pangyo-dong' || (!spot.neighborhood && ['spot-riverside', 'spot-park', 'spot-market'].includes(spot.id)) },
   { id: 'jeongja', label: { ko: '정자동', en: 'Jeongja-dong' }, center: [127.1089, 37.3671], zoom: 15, match: (spot) => spot.neighborhood === 'Jeongja-dong' },
@@ -52,13 +54,23 @@ const regionScopes: Array<{
 ];
 const regionArea = (scope: RegionScope) => {
   const neighborhood = {
-    all: 'Pangyo-dong',
+    all: 'Jeungmi-dong',
+    gangseo: 'Jeungmi-dong',
+    jeungmi: 'Jeungmi-dong',
     bundang: 'Pangyo-dong',
     pangyo: 'Pangyo-dong',
     jeongja: 'Jeongja-dong',
     sunae: 'Sunae-dong',
     seohyeon: 'Seohyeon-dong',
   }[scope];
+  if (scope === 'all' || scope === 'gangseo' || scope === 'jeungmi') {
+    return {
+      countryCode: 'KR',
+      city: 'Seoul',
+      district: 'Gangseo-gu',
+      neighborhood,
+    };
+  }
   return {
     countryCode: 'KR',
     city: 'Seongnam-si',
@@ -68,6 +80,8 @@ const regionArea = (scope: RegionScope) => {
 };
 const demoAddressIndex = [
   { label: '서울', aliases: ['seoul', '서울', '서울시'], center: [126.978, 37.5665] as [number, number], zoom: 12 },
+  { label: '강서구', aliases: ['gangseo', '강서', '강서구', '서울 강서구'], center: [126.8497, 37.5509] as [number, number], zoom: 13 },
+  { label: '증미역', aliases: ['jeungmi', '증미', '증미역'], center: [126.8611, 37.5584] as [number, number], zoom: 15.5 },
   { label: '분당', aliases: ['bundang', '분당', '성남 분당', '분당구'], center: [127.1189, 37.3827] as [number, number], zoom: 13 },
   { label: '판교', aliases: ['pangyo', '판교', '판교역'], center: [127.1115, 37.3948] as [number, number], zoom: 15 },
   { label: '정자', aliases: ['jeongja', '정자', '정자역'], center: [127.1089, 37.3671] as [number, number], zoom: 15 },
@@ -122,7 +136,7 @@ const getStoredLocale = (): Locale => {
 };
 const getStoredRegionScope = (): RegionScope => {
   const stored = localStorage.getItem(regionStorageKey);
-  return regionScopes.some((scope) => scope.id === stored) ? (stored as RegionScope) : 'bundang';
+  return regionScopes.some((scope) => scope.id === stored) ? (stored as RegionScope) : 'all';
 };
 const searchDemoAddress = (query: string) => {
   const normalized = query.trim().toLowerCase();
@@ -138,7 +152,10 @@ const createCatIconImage = () => {
   const context = canvas.getContext('2d');
   if (!context) return null;
 
-  context.fillStyle = '#ffffff';
+  context.strokeStyle = '#263128';
+  context.lineWidth = 5;
+  context.lineJoin = 'round';
+  context.fillStyle = '#fff8ea';
   context.beginPath();
   context.moveTo(18, 24);
   context.lineTo(20, 11);
@@ -150,6 +167,7 @@ const createCatIconImage = () => {
   context.quadraticCurveTo(11, 55, 11, 40);
   context.quadraticCurveTo(11, 30, 18, 24);
   context.closePath();
+  context.stroke();
   context.fill();
 
   context.fillStyle = '#1f2a24';
@@ -261,8 +279,8 @@ function AppMap({
         },
         layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
       },
-      center: [127.111, 37.395],
-      zoom: 14.3,
+      center: [126.996, 37.488],
+      zoom: 10.4,
       attributionControl: false,
     });
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
@@ -286,7 +304,7 @@ function AppMap({
           features: [],
         },
         cluster: true,
-        clusterRadius: 180,
+        clusterRadius: 110,
         clusterMaxZoom: 14,
         clusterProperties: {
           maxStatus: ['max', ['get', 'statusScore']],
@@ -307,7 +325,7 @@ function AppMap({
             statusColor.dueSoon,
             statusColor.caredToday,
           ],
-          'circle-radius': ['step', ['get', 'point_count'], 22, 3, 27, 8, 32],
+          'circle-radius': ['step', ['get', 'point_count'], 20, 3, 25, 8, 31],
           'circle-stroke-width': 4,
           'circle-stroke-color': '#ffffff',
           'circle-opacity': 0.96,
@@ -336,7 +354,7 @@ function AppMap({
         filter: ['!', ['has', 'point_count']],
         paint: {
           'circle-color': ['get', 'color'],
-          'circle-radius': ['case', ['boolean', ['get', 'selected'], false], 19, 15],
+          'circle-radius': ['case', ['boolean', ['get', 'selected'], false], 22, 17],
           'circle-stroke-width': ['case', ['boolean', ['get', 'selected'], false], 5, 3],
           'circle-stroke-color': '#ffffff',
           'circle-opacity': 0.96,
@@ -350,7 +368,7 @@ function AppMap({
         filter: ['!', ['has', 'point_count']],
         layout: {
           'icon-image': 'cat-spot',
-          'icon-size': ['case', ['boolean', ['get', 'selected'], false], 0.32, 0.25],
+          'icon-size': ['case', ['boolean', ['get', 'selected'], false], 0.46, 0.38],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
         },
@@ -930,7 +948,7 @@ export function App() {
   const [map, setMap] = useState<Map | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>([127.111, 37.395]);
-  const [zoomLevel, setZoomLevel] = useState(14.3);
+  const [zoomLevel, setZoomLevel] = useState(10.4);
   const [regionScope, setRegionScope] = useState<RegionScope>(() => getStoredRegionScope());
   const t = messages[locale];
   const activeRegion = regionScopes.find((scope) => scope.id === regionScope) ?? regionScopes[1];
