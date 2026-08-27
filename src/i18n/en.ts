@@ -107,6 +107,8 @@ export const en = {
     regionScope: 'Region scope',
     allRegions: 'All',
     careRegionHint: 'Showing map spots and open care in the selected region.',
+    noSpotsInRegion: 'No spots in this area yet',
+    noSpotsInRegionBody: 'Choose another area or use the map + button to create a new care spot at the center pin.',
   },
   toast: {
     shiftTaken: 'Care shift added to My Care.',

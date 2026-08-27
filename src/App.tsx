@@ -116,6 +116,14 @@ const dateInput = (offsetDays: number) => {
 };
 
 const getSpot = (state: DemoState, spotId: string) => state.spots.find((spot) => spot.id === spotId);
+const getStoredLocale = (): Locale => {
+  const stored = localStorage.getItem(localeStorageKey);
+  return stored === 'en' || stored === 'ko' ? stored : 'ko';
+};
+const getStoredRegionScope = (): RegionScope => {
+  const stored = localStorage.getItem(regionStorageKey);
+  return regionScopes.some((scope) => scope.id === stored) ? (stored as RegionScope) : 'bundang';
+};
 const searchDemoAddress = (query: string) => {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return undefined;
@@ -598,7 +606,7 @@ function SpotCard({ spot, shift, onOpen, onTake, t }: { spot: Spot; shift?: Shif
 function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway, t }: { state: DemoState; onOpenSpot: (id: string) => void; onTake: (id: string) => void; onQuickCare: () => void; onAway: () => void; t: Messages }) {
   const needsCare = [...state.spots].sort((a, b) => statusRank[a.status] - statusRank[b.status]);
   const featured = needsCare[0];
-  const shift = state.shifts.find((item) => item.spotId === featured.id && item.status === 'open');
+  const shift = featured ? state.shifts.find((item) => item.spotId === featured.id && item.status === 'open') : undefined;
   const count = state.spots.filter((spot) => spot.status !== 'caredToday').length;
   return (
     <SheetShell title={t.sheets.nearbyCare} eyebrow={t.sheets.tonight} defaultExpanded={false}>
@@ -607,7 +615,15 @@ function NearbySheet({ state, onOpenSpot, onTake, onQuickCare, onAway, t }: { st
         <strong>{count} {t.sheets.spotsNeedCare}</strong>
         <span>{t.sheets.nearby}</span>
       </div>
-      <SpotCard spot={featured} shift={shift} onOpen={() => onOpenSpot(featured.id)} onTake={() => shift && onTake(shift.id)} t={t} />
+      {featured ? (
+        <SpotCard spot={featured} shift={shift} onOpen={() => onOpenSpot(featured.id)} onTake={() => shift && onTake(shift.id)} t={t} />
+      ) : (
+        <section className="empty-state compact-empty">
+          <MapPin size={22} />
+          <h2>{t.sheets.noSpotsInRegion}</h2>
+          <p>{t.sheets.noSpotsInRegionBody}</p>
+        </section>
+      )}
       <div className="quick-grid">
         <button className="quick-card" onClick={onQuickCare}>
           <span className="quick-icon"><ClipboardCheck size={18} /></span>
@@ -906,7 +922,7 @@ function SettingsSheet({
 
 export function App() {
   const [state, setState] = useState<DemoState>(() => demoRepository.load());
-  const [locale, setLocale] = useState<Locale>(() => (localStorage.getItem(localeStorageKey) as Locale | null) ?? 'ko');
+  const [locale, setLocale] = useState<Locale>(() => getStoredLocale());
   const [tab, setTab] = useState<Tab>('map');
   const [sheet, setSheet] = useState<Sheet>('nearby');
   const [selectedSpotId, setSelectedSpotId] = useState(state.spots[0]?.id);
@@ -915,7 +931,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>([127.111, 37.395]);
   const [zoomLevel, setZoomLevel] = useState(14.3);
-  const [regionScope, setRegionScope] = useState<RegionScope>(() => (localStorage.getItem(regionStorageKey) as RegionScope | null) ?? 'bundang');
+  const [regionScope, setRegionScope] = useState<RegionScope>(() => getStoredRegionScope());
   const t = messages[locale];
   const activeRegion = regionScopes.find((scope) => scope.id === regionScope) ?? regionScopes[1];
   const scopedSpots = useMemo(() => state.spots.filter((spot) => activeRegion.match(spot)), [activeRegion, state.spots]);

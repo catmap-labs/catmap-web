@@ -107,6 +107,8 @@ export const ko = {
     regionScope: '지역 범위',
     allRegions: '전체',
     careRegionHint: '선택한 지역의 지도 스팟과 열린 돌봄만 보여줍니다.',
+    noSpotsInRegion: '이 지역에는 아직 스팟이 없어요',
+    noSpotsInRegionBody: '다른 지역을 선택하거나 지도 중앙의 + 버튼으로 새 돌봄 스팟을 만들어보세요.',
   },
   toast: {
     shiftTaken: '돌봄 일정이 내 돌봄에 추가되었습니다.',

@@ -7,7 +7,10 @@ const storageKey = 'catmap-demo-state-v1';
 
 const mergeById = <T extends { id: string }>(fallback: T[], stored?: T[]) => {
   const merged = new Map(fallback.map((item) => [item.id, item]));
-  stored?.forEach((item) => merged.set(item.id, item));
+  stored?.forEach((item) => {
+    const base = merged.get(item.id);
+    merged.set(item.id, base ? { ...base, ...item } : item);
+  });
   return [...merged.values()];
 };
 
