@@ -4,15 +4,33 @@ import { createMemoryDb } from './memoryDb';
 import { CareLog, CareTask, DemoState, HandoffRequest, Spot } from '../../types/domain';
 
 const storageKey = 'catmap-demo-state-v1';
+const seedVersionKey = 'catmap-demo-seed-version-v1';
+const seedVersion = '2';
 
-const mergeById = <T extends { id: string }>(fallback: T[], stored?: T[]) => {
+const mergeById = <T extends { id: string }>(
+  fallback: T[],
+  stored?: T[],
+  preserveStoredFields: (item: T) => Partial<T> = () => ({}),
+) => {
   const merged = new Map(fallback.map((item) => [item.id, item]));
   stored?.forEach((item) => {
     const base = merged.get(item.id);
-    merged.set(item.id, base ? { ...base, ...item } : item);
+    merged.set(item.id, base ? { ...item, ...base, ...preserveStoredFields(item) } : item);
   });
   return [...merged.values()];
 };
+
+const preserveSpotState = (spot: Spot): Partial<Spot> => ({
+  status: spot.status,
+  lastCaredAt: spot.lastCaredAt,
+  lastCaredBy: spot.lastCaredBy,
+  nextCareAt: spot.nextCareAt,
+});
+
+const preserveShiftState = (shift: DemoState['shifts'][number]): Partial<DemoState['shifts'][number]> => ({
+  status: shift.status,
+  assignedToProfileId: shift.assignedToProfileId,
+});
 
 const read = (): DemoState => {
   const fallback = createDemoState();
@@ -24,11 +42,11 @@ const read = (): DemoState => {
       ...fallback,
       ...stored,
       profiles: mergeById(fallback.profiles, stored.profiles),
-      spots: mergeById(fallback.spots, stored.spots),
+      spots: mergeById(fallback.spots, stored.spots, preserveSpotState),
       cats: mergeById(fallback.cats, stored.cats),
       members: mergeById(fallback.members, stored.members),
       routines: mergeById(fallback.routines, stored.routines),
-      shifts: mergeById(fallback.shifts, stored.shifts),
+      shifts: mergeById(fallback.shifts, stored.shifts, preserveShiftState),
       assignments: mergeById(fallback.assignments, stored.assignments),
       careLogs: mergeById(fallback.careLogs, stored.careLogs),
       handoffRequests: mergeById(fallback.handoffRequests, stored.handoffRequests),
@@ -39,7 +57,10 @@ const read = (): DemoState => {
   }
 };
 
-const write = (state: DemoState) => localStorage.setItem(storageKey, JSON.stringify(state));
+const write = (state: DemoState) => {
+  localStorage.setItem(storageKey, JSON.stringify(state));
+  localStorage.setItem(seedVersionKey, seedVersion);
+};
 
 const uid = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const todayDoneStatus = 'caredToday' as const;

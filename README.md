@@ -84,6 +84,8 @@ Demo Mode supports:
 - spot creation from the current map center pin
 - Korean / English language switching
 
+The demo repository merges the latest seeded station spots with the user's localStorage state. This keeps newly added Korea sample spots and corrected approximate coordinates visible for existing browsers while preserving user-created spots, claimed shifts, handoff requests, and care completion state.
+
 To reset demo data, clear the browser localStorage key:
 
 ```text
